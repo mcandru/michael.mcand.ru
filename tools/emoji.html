@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emoji Search and Copy</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #search {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
+            font-size: 16px;
+        }
+        .emoji {
+            display: inline-block;
+            font-size: 24px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        .emoji:hover {
+            background-color: #f0f0f0;
+            border-radius: 4px;
+        }
+        .copied {
+            animation: fadeout 2s;
+            color: green;
+            font-size: 14px;
+            position: absolute;
+        }
+        @keyframes fadeout {
+            0% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <h1>Emoji Search and Copy</h1>
+    <input type="text" id="search" placeholder="Search for an emoji...">
+    <div id="emoji-container"></div>
+
+    <script>
+        let emojis = [];
+
+        function displayEmojis(filter = "") {
+            const emojiContainer = document.getElementById('emoji-container');
+            emojiContainer.innerHTML = "";
+            const filteredEmojis = emojis.filter(item => 
+                item.char.includes(filter) || item.name.toLowerCase().includes(filter.toLowerCase())
+            );
+            filteredEmojis.forEach(item => {
+                const emojiElement = document.createElement('span');
+                emojiElement.textContent = item.char;
+                emojiElement.className = 'emoji';
+                emojiElement.title = `${item.name} (Click to copy)`;
+                emojiElement.addEventListener('click', (e) => {
+                    copyToClipboard(item.char, e.target);
+                });
+                emojiContainer.appendChild(emojiElement);
+            });
+        }
+
+        function copyToClipboard(text, element) {
+            navigator.clipboard.writeText(text).then(() => {
+                showCopiedIndicator(element);
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+            });
+        }
+
+        function showCopiedIndicator(element) {
+            const copiedIndicator = document.createElement('span');
+            copiedIndicator.textContent = 'Copied!';
+            copiedIndicator.className = 'copied';
+            document.body.appendChild(copiedIndicator);
+
+            const rect = element.getBoundingClientRect();
+            copiedIndicator.style.left = `${rect.left + window.scrollX}px`;
+            copiedIndicator.style.top = `${rect.top + window.scrollY - 20}px`;
+
+            setTimeout(() => {
+                copiedIndicator.remove();
+            }, 2000);
+        }
+
+        document.getElementById('search').addEventListener('input', (e) => {
+            displayEmojis(e.target.value);
+        });
+
+        fetch('https://unpkg.com/emoji.json/emoji.json')
+            .then(response => response.json())
+            .then(data => {
+                emojis = data;
+                displayEmojis();
+            })
+            .catch(err => console.error('Error loading emojis:', err));
+    </script>
+</body>
+</html>
