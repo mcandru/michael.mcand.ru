@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeBarcoder</title>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: auto;
+            text-align: center;
+        }
+        #image-preview {
+            width: 100%;
+            max-height: 400px;
+            margin: 20px 0;
+        }
+        textarea {
+            width: 100%;
+            height: 150px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>DeBarcoder</h1>
+        <p>Paste a screenshot of a barcode to decode it.</p>
+
+        <canvas id="canvas" style="display: none;"></canvas>
+        <img id="image-preview" alt="Pasted Image Preview" />
+
+        <textarea id="output" placeholder="Extracted text will appear here..."></textarea>
+
+        <p id="status"></p>
+    </div>
+
+    <script type="text/javascript" src="https://unpkg.com/@zxing/browser@latest"></script>
+    <script>
+        const imagePreview = document.getElementById('image-preview');
+        const canvas = document.getElementById('canvas');
+        const output = document.getElementById('output');
+        const status = document.getElementById('status');
+
+        document.addEventListener('paste', async (event) => {
+            // Initialize the ZXing barcode reader
+            const codeReader = new ZXingBrowser.BrowserMultiFormatReader();
+
+            const items = event.clipboardData.items;
+            let imageItem = null;
+
+            for (const item of items) {
+                if (item.type.startsWith('image/')) {
+                    imageItem = item;
+                    break;
+                }
+            }
+            if (imageItem) {
+                const file = imageItem.getAsFile();
+                const url = URL.createObjectURL(file);
+                imagePreview.src = url;
+                
+                const img = new Image();
+                img.src = url;
+
+                img.onload = async () => {
+                    const canvas = document.getElementById('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0, img.width, img.height);
+
+                    try {
+                        // Decode the barcode from the canvas
+                        const result = await codeReader.decodeFromCanvas(canvas);
+                        output.textContent = result.text;
+                        status.textContent = "Barcode detected.";
+                    } catch (err) {
+                        status.textContent = 'No barcode detected.';
+                    }
+                };
+            }
+        });
+    </script>
+</body>
+</html>
+
