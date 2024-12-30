@@ -51,6 +51,34 @@
         const cameraButton = document.getElementById('camera-button');
         const cameraInput = document.getElementById('camera-input');
 
+        function hasBarcodeDetectorImplemented() {
+            return 'BarcodeDetector' in window;
+        }
+
+        async function getBarcodeFromBarcodeDetectorAPI(canvas) {
+            const barcodeDetector = new BarcodeDetector();
+            const barcodes = await barcodeDetector.detect(canvas);
+            return barcodes[0].rawValue;
+        }
+
+        async function getBarcodeFromZXing(canvas) {
+            const codeReader = new ZXingBrowser.BrowserMultiFormatReader();
+            const result = await codeReader.decodeFromCanvas(canvas);
+            return result.text;
+        }
+
+        async function readBarcode(canvas) {
+            if (hasBarcodeDetectorImplemented()) {
+                const result = await getBarcodeFromBarcodeDetectorAPI(canvas);
+                if (!result) {
+                  return await getBarcodeFromZXing(canvas);
+                }
+                return result;
+            } else {
+                return await getBarcodeFromZXing(canvas);
+            }
+        }
+
         document.addEventListener('paste', async (event) => {
             // Initialize the ZXing barcode reader
             const codeReader = new ZXingBrowser.BrowserMultiFormatReader();
@@ -80,12 +108,11 @@
                     ctx.drawImage(img, 0, 0, img.width, img.height);
 
                     try {
-                        // Decode the barcode from the canvas
-                        const result = await codeReader.decodeFromCanvas(canvas);
-                        output.textContent = result.text;
-                        status.textContent = "Barcode detected.";
+                      const result = await readBarcode(canvas);
+                      output.textContent = result;
+                      status.textContent = "Barcode detected.";
                     } catch (err) {
-                        status.textContent = 'No barcode detected.';
+                      status.textContent = 'No barcode detected.';
                     }
                 };
             }
@@ -112,23 +139,11 @@
                   ctx.drawImage(img, 0, 0, img.width, img.height);
 
                   try {
-                      const hints = new Map();
-                      hints.set(ZXingBrowser.DecodeHintType.TRY_HARDER, true);
-                      hints.set(ZXingBrowser.DecodeHintType.POSSIBLE_FORMATS, [
-                          ZXingBrowser.BarcodeFormat.EAN_13,
-                          ZXingBrowser.BarcodeFormat.EAN_8,
-                          ZXingBrowser.BarcodeFormat.CODE_128,
-                          ZXingBrowser.BarcodeFormat.CODE_39,
-                          ZXingBrowser.BarcodeFormat.UPC_A,
-                          ZXingBrowser.BarcodeFormat.UPC_E,
-                          ZXingBrowser.BarcodeFormat.QR_CODE
-                      ]);
-                      const codeReader = new ZXingBrowser.BrowserMultiFormatReader(hints);
-                      const result = await codeReader.decodeFromCanvas(canvas);
-                      output.textContent = result.text;
-                      status.textContent = "Barcode detected.";
+                    const result = await readBarcode(canvas);
+                    output.textContent = result;
+                    status.textContent = "Barcode detected.";
                   } catch (err) {
-                      status.textContent = 'No barcode detected.';
+                    status.textContent = 'No barcode detected.';
                   }
               };
           }
