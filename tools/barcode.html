@@ -37,7 +37,7 @@
         <canvas id="canvas" style="display: none;"></canvas>
         <img id="image-preview" alt="Pasted Image Preview" />
 
-        <textarea id="output" placeholder="Extracted text will appear here..."></textarea>
+        <textarea id="output" placeholder="Decoded barcode text will appear here..."></textarea>
 
         <p id="status"></p>
     </div>
@@ -112,7 +112,18 @@
                   ctx.drawImage(img, 0, 0, img.width, img.height);
 
                   try {
-                      const codeReader = new ZXingBrowser.BrowserMultiFormatReader();
+                      const hints = new Map();
+                      hints.set(ZXingBrowser.DecodeHintType.TRY_HARDER, true);
+                      hints.set(ZXingBrowser.DecodeHintType.POSSIBLE_FORMATS, [
+                          ZXingBrowser.BarcodeFormat.EAN_13,
+                          ZXingBrowser.BarcodeFormat.EAN_8,
+                          ZXingBrowser.BarcodeFormat.CODE_128,
+                          ZXingBrowser.BarcodeFormat.CODE_39,
+                          ZXingBrowser.BarcodeFormat.UPC_A,
+                          ZXingBrowser.BarcodeFormat.UPC_E,
+                          ZXingBrowser.BarcodeFormat.QR_CODE
+                      ]);
+                      const codeReader = new ZXingBrowser.BrowserMultiFormatReader(hints);
                       const result = await codeReader.decodeFromCanvas(canvas);
                       output.textContent = result.text;
                       status.textContent = "Barcode detected.";
