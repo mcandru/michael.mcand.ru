@@ -30,7 +30,7 @@
 <body>
     <div class="container">
         <h1>DeBarcoder</h1>
-        <p>Paste a screenshot of a barcode to decode it.</p>
+        <p>Paste a screenshot of a barcode or take a photo to decode it.</p>
         <div><button id="camera-button">📸 Take Photo</button></div>
         <input type="file" id="camera-input" accept="image/*" capture="environment" style="display: none;"></input>
 
@@ -89,6 +89,10 @@
                     }
                 };
             }
+        });
+
+        cameraButton.addEventListener('click', () => {
+            cameraInput.click();
         });
 
         cameraInput.addEventListener('change', async (event) => {
