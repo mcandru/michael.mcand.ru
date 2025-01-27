@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Text Highlighter</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    .highlight {
+      background-color: yellow;
+    }
+    textarea, input {
+      width: 100%;
+      margin-bottom: 10px;
+      padding: 10px;
+      font-size: 1rem;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    #output {
+      margin-top: 20px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <h1>Text Highlighter</h1>
+  <label for="text-input">Source Text:</label>
+  <textarea id="text-input" rows="5" placeholder="Enter your source text here..."></textarea>
+
+  <label for="tuples-input">Tuples (e.g., [3,4],[9,10]):</label>
+  <input id="tuples-input" type="text" placeholder="Enter tuples of indices here...">
+
+  <button onclick="highlightText()">Highlight</button>
+
+  <div id="output"></div>
+
+  <script>
+    function highlightText() {
+      const textInput = document.getElementById('text-input').value;
+      const tuplesInput = document.getElementById('tuples-input').value;
+      const output = document.getElementById('output');
+
+      // Parse the tuples input
+      let tuples;
+      try {
+        tuples = JSON.parse(`[${tuplesInput}]`);
+      } catch (e) {
+        output.innerHTML = '<p style="color:red;">Invalid tuples format. Please use the format: [start,end],[start,end]</p>';
+        return;
+      }
+
+      // Split the text into tokens (words)
+      const tokens = textInput.split(/\s+/);
+
+      // Highlight the tokens within the specified ranges
+      let highlightedText = '';
+      tokens.forEach((token, index) => {
+        const isHighlighted = tuples.some(([start, end]) => index >= start && index < end);
+        highlightedText += isHighlighted ? `<span class="highlight">${token}</span> ` : `${token} `;
+      });
+
+      // Display the highlighted text
+      output.innerHTML = `<p>${highlightedText.trim()}</p>`;
+    }
+  </script>
+</body>
+</html>
