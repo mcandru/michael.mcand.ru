@@ -64,27 +64,36 @@
                     if (Array.isArray(bbox) && bbox.length === 4 && line.startsWith("[") && line.endsWith("]")) {
                         drawBoundingBox(bbox);
                     } else {
-                        alert(`Invalid bounding box format: ${bboxString}`);
+                        alert(`Invalid bounding box format: ${line}`);
                     }
                 } catch (e) {
-                    alert(`Error parsing bounding box: ${bboxString}`);
+                    alert(`Error parsing bounding box: ${line}`);
                 }
             });
         });
 
         function drawBoundingBox([ymin, xmin, ymax, xmax]) {
             const imgRect = imageDisplay.getBoundingClientRect();
-            const scaleX = imgRect.width / 1000;
-            const scaleY = imgRect.height / 1000;
+            const imgWidth = imgRect.width;
+            const imgHeight = imgRect.height;
 
-            console.log("Coords", ymin * scaleY, xmin * scaleX, (xmax - xmin) * scaleX, (ymax - ymin) * scaleY)
+            let isNormalized = ymin >= 0 && ymin <= 1 && xmin >= 0 && xmin <= 1 && 
+                               ymax >= 0 && ymax <= 1 && xmax >= 0 && xmax <= 1;
+
+            // Adjust for normalized coordinates
+            if (isNormalized) {
+                ymin *= imgHeight;
+                xmin *= imgWidth;
+                ymax *= imgHeight;
+                xmax *= imgWidth;
+            }
 
             const bbox = document.createElement('div');
             bbox.className = 'bounding-box';
-            bbox.style.top = `${ymin * scaleY}px`;
-            bbox.style.left = `${xmin * scaleX}px`;
-            bbox.style.width = `${(xmax - xmin) * scaleX}px`;
-            bbox.style.height = `${(ymax - ymin) * scaleY}px`;
+            bbox.style.top = `${ymin}px`;
+            bbox.style.left = `${xmin}px`;
+            bbox.style.width = `${xmax - xmin}px`;
+            bbox.style.height = `${ymax - ymin}px`;
 
             imageContainer.appendChild(bbox);
         }
