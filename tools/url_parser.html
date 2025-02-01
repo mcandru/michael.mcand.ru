@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL Parser & Editor</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 900px; }
+        input { padding: 5px; margin: 5px 0; width: 100%; }
+        button { padding: 8px; margin-top: 10px; cursor: pointer; }
+        .param-key { font-weight: bold; padding: 2px; border-radius: 3px; }
+        .url-highlight { padding: 1px 2px; border-radius: 2px; }
+        #fullUrl { font-family: monospace; }
+        .url-component {
+            padding: 1px 2px;
+            border-radius: 2px;
+        }
+        input[data-component] {
+            border: none;
+            border-radius: 3px;
+        }
+        .query-param-value {
+          background-color: #EEE;
+        }
+    </style>
+</head>
+<body>
+    <h2>URL Parser & Editor</h2>
+    <label>Full URL:</label>
+    <input type="text" id="fullUrl" value="https://api.example.com/v1/resource?id=123&user=alice%20smith#section1" readonly>
+    
+    <div id="decoded">
+      <label>Protocol:</label>
+      <input type="text" id="protocol" data-component="protocol" style="background-color: #ffcdd2">
+      <label>Subdomain:</label>
+      <input type="text" id="subdomain" data-component="subdomain" style="background-color: #c8e6c9">
+      <label>Domain:</label>
+      <input type="text" id="domain" data-component="domain" style="background-color: #bbdefb">
+      <label>TLD:</label>
+      <input type="text" id="tld" data-component="tld" style="background-color: #d1c4e9">
+      <label>Path:</label>
+      <input type="text" id="path" data-component="path" style="background-color: #fff9c4">
+      <label>Fragment:</label>
+      <input type="text" id="fragment" data-component="fragment" style="background-color: #ffe0b2">
+      
+      <h3>Query Parameters</h3>
+      <div id="queryParams"></div>
+      <button onclick="addQueryParam()">Add Query Parameter</button>
+      <button onclick="regenerateUrl()">Regenerate URL</button>
+    </div>
+    
+    <script>
+        const URL_COMPONENT_COLOURS = {
+            protocol: '#ffcdd2',   // Light red
+            subdomain: '#c8e6c9',  // Light green
+            domain: '#bbdefb',     // Light blue
+            tld: '#d1c4e9',       // Light purple
+            path: '#fff9c4',      // Light yellow
+            fragment: '#ffe0b2'    // Light orange
+        };
+
+        function parseUrl() {
+            const urlInput = document.getElementById("fullUrl").value;
+            try {
+                const url = new URL(urlInput);
+                document.getElementById("protocol").value = url.protocol.replace(":", "");
+                const hostParts = url.hostname.split(".");
+                document.getElementById("subdomain").value = hostParts.length > 2 ? hostParts[0] : "";
+                document.getElementById("domain").value = hostParts.slice(-2, -1)[0];
+                document.getElementById("tld").value = hostParts.slice(-1)[0];
+                document.getElementById("path").value = url.pathname;
+                document.getElementById("fragment").value = url.hash;
+                
+                const params = new URLSearchParams(url.search);
+                const queryParamsDiv = document.getElementById("queryParams");
+                queryParamsDiv.innerHTML = "";
+                params.forEach((value, key) => {
+                    const color = getRandomColor();
+                    const paramDiv = document.createElement("div");
+                    paramDiv.innerHTML = `
+                        <input type='text' value='${key}' data-type="key" style="background-color: ${color}" data-color="${color}" data-component="query-param"> 
+                        <input type='text' value='${value}' data-component="query-param" class="query-param-value">
+                        <button onclick="this.parentElement.remove()">Remove</button>
+                    `;
+                    queryParamsDiv.appendChild(paramDiv);
+                });
+            } catch (e) {
+                alert("Invalid URL");
+            }
+            highlightFullUrl();
+        }
+
+        function addQueryParam() {
+            const queryParamsDiv = document.getElementById("queryParams");
+            const paramDiv = document.createElement("div");
+            const color = getRandomColor();
+            paramDiv.innerHTML = `
+                <input type='text' placeholder='key' style="background-color: ${color}" data-color="${color}" data-component="query-param"> 
+                <input type='text' placeholder='value' data-component="query-param">
+                <button onclick="this.parentElement.remove()">Remove</button>
+            `;
+            queryParamsDiv.appendChild(paramDiv);
+        }
+        
+        function regenerateUrl() {
+            const protocol = document.getElementById("protocol").value;
+            const subdomain = document.getElementById("subdomain").value;
+            const domain = document.getElementById("domain").value;
+            const tld = document.getElementById("tld").value;
+            const path = document.getElementById("path").value;
+            const fragment = document.getElementById("fragment").value;
+            
+            let newUrl = `${protocol}://${subdomain ? subdomain + '.' : ''}${domain}.${tld}${path}`;
+            
+            const queryParams = {};
+            document.querySelectorAll("#queryParams div").forEach(div => {
+                const key = div.children[0].value;
+                const value = div.children[1].value;
+                console.log("Key:", key, "Value:", value);
+                if (key && value) queryParams[key] = value;
+            });
+            
+            const queryString = new URLSearchParams(queryParams).toString();
+            if (queryString) newUrl += `?${queryString}`;
+            if (fragment) newUrl += fragment;
+            
+            document.getElementById("fullUrl").value = newUrl;
+        }
+
+        function getRandomColor() {
+            // Generate pastel colors for better readability
+            const hue = Math.floor(Math.random() * 360);
+            return `hsl(${hue}, 70%, 85%)`;
+        }
+
+        function highlightFullUrl() {
+            const fullUrlInput = document.getElementById("fullUrl");
+            let url = new URL(fullUrlInput.value);
+
+            // Split hostname into parts
+            const hostParts = url.hostname.split(".");
+            const subdomain = hostParts.length > 2 ? hostParts[0] : "";
+            const domain = hostParts.slice(-2, -1)[0];
+            const tld = hostParts.slice(-1)[0];
+
+            // Build the display text with components highlighted
+            let displayText = `<span class="url-component" style="background-color: ${URL_COMPONENT_COLOURS.protocol}">${url.protocol}</span>//`;
+            
+            // Add hostname components
+            if (subdomain) {
+                displayText += `<span class="url-component" style="background-color: ${URL_COMPONENT_COLOURS.subdomain}">${subdomain}</span>.`;
+            }
+            displayText += `<span class="url-component" style="background-color: ${URL_COMPONENT_COLOURS.domain}">${domain}</span>.`;
+            displayText += `<span class="url-component" style="background-color: ${URL_COMPONENT_COLOURS.tld}">${tld}</span>`;
+            
+            // Add path
+            if (url.pathname !== '/') {
+                displayText += `<span class="url-component" style="background-color: ${URL_COMPONENT_COLOURS.path}">${url.pathname}</span>`;
+            }
+            
+            const params = new URLSearchParams(url.search);
+            const paramColors = {};
+            
+            // Collect all param colors
+            document.querySelectorAll("#queryParams div").forEach(div => {
+                const keyInput = div.querySelector('input[data-type="key"]');
+                const key = keyInput.value;
+                if (key) {
+                    paramColors[key] = keyInput.getAttribute('data-color');
+                }
+            });
+
+            // Add colored query parameters
+            if (url.search) {
+                displayText += '?';
+                let first = true;
+                params.forEach((value, key) => {
+                    if (!first) displayText += '&';
+                    const color = paramColors[key];
+                    displayText += `<span class="url-highlight" style="background-color: ${color}">${key}=${encodeURIComponent(value)}</span>`;
+                    first = false;
+                });
+            }
+
+            // Add fragment
+            if (url.hash) {
+                displayText += `<span class="url-component" style="background-color: ${URL_COMPONENT_COLOURS.fragment}">${url.hash}</span>`;
+            }
+
+            // Create a temporary div to hold the URL
+            const tempDiv = document.createElement('div');
+            tempDiv.style.cssText = 'position: absolute; left: -9999px;';
+            document.body.appendChild(tempDiv);
+            tempDiv.innerHTML = displayText;
+
+            // Update the input value and styling
+            fullUrlInput.style.height = 'auto';
+            fullUrlInput.value = tempDiv.textContent; // Plain text for the actual input value
+            document.body.removeChild(tempDiv);
+
+            // Create a div to show the highlighted version
+            let highlightDiv = document.getElementById('highlightedUrl');
+            if (!highlightDiv) {
+                highlightDiv = document.createElement('div');
+                highlightDiv.id = 'highlightedUrl';
+                highlightDiv.style.cssText = 'font-family: monospace; padding: 5px; margin: 5px 0; border: 1px solid #ccc; background: white;';
+                fullUrlInput.parentNode.insertBefore(highlightDiv, fullUrlInput.nextSibling);
+                fullUrlInput.style.display = 'none';
+            }
+            highlightDiv.innerHTML = displayText;
+        }
+        
+        parseUrl();
+    </script>
+</body>
+</html>
