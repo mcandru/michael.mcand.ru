@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Image Bounding Box Viewer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -22,18 +23,50 @@
             border: 2px solid red;
             box-sizing: border-box;
         }
+        #page-controls {
+            margin: 10px 0;
+            display: none;
+        }
+        #page-controls button {
+            margin: 0 5px;
+        }
+        #page-num {
+            margin: 0 10px;
+        }
+        .custom-file-input input[type="file"] {
+            display: none;
+        }
+        .custom-file-input {
+            display: inline-block;
+            padding: 8px 12px;
+            cursor: pointer;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .custom-file-input:hover {
+            background-color: #e9ecef;
+        }
     </style>
 </head>
 <body>
-    <h1>Image Bounding Box Viewer</h1>
-    <input type="file" id="file-input" accept="image/*">
+    <h1>Bounding Box Viewer</h1>
+    <label class="custom-file-input">
+      <input type="file" id="file-input" accept="image/*,.pdf">
+      Select Image or PDF
+    </label>
+    <div id="page-controls">
+      <button id="prev-page">Previous</button>
+      <span id="page-num">Page: 1 / 1</span>
+      <button id="next-page">Next</button>
+    </div>
     <br><br>
     <textarea id="bbox-input" rows="5" cols="50" placeholder="Enter bounding boxes in the format: [ymin, xmin, ymax, xmax]. One per line"></textarea>
     <br><br>
-    <button id="draw-bbox">Draw Bounding Boxes</button>
+    <button id="draw-bbox" class="custom-file-input">Draw Bounding Boxes</button>
     <br><br>
     <div id="image-container">
-        <img id="image-display" alt="Selected image will appear here">
+        <img id="image-display" alt="Selected file will be displayed here">
     </div>
 
     <script>
@@ -43,15 +76,41 @@
         const imageDisplay = document.getElementById('image-display');
         const imageContainer = document.getElementById('image-container');
 
-        fileInput.addEventListener('change', (event) => {
+        // PDF Page controls
+        let currentPage = 1;
+        let pdfDoc = null;
+        const pageControls = document.getElementById('page-controls');
+        const prevButton = document.getElementById('prev-page');
+        const nextButton = document.getElementById('next-page');
+        const pageNum = document.getElementById('page-num');
+
+        // Initialize PDF.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        fileInput.addEventListener('change', async (event) => {
             const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    imageDisplay.src = e.target.result;
-                    clearBoundingBoxes();
-                };
-                reader.readAsDataURL(file);
+
+            if (!file) return;
+
+            clearBoundingBoxes();
+
+            if (file.type === "application/pdf") {
+              const arrayBuffer = await file.arrayBuffer();
+              pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+              pageNum.textContent = `Page: ${currentPage} / ${pdfDoc.numPages}`;
+              pageControls.style.display = 'block';
+
+              await renderPage(currentPage);
+            } else {
+              pageControls.style.display = "none";
+              pdfDoc = null;
+              
+              const reader = new FileReader();
+              reader.onload = (e) => {
+                  imageDisplay.src = e.target.result;
+              };
+              reader.readAsDataURL(file);
             }
         });
 
@@ -102,6 +161,41 @@
             const boxes = document.querySelectorAll('.bounding-box');
             boxes.forEach(box => box.remove());
         }
+
+        async function renderPage(pageNumber) {
+            const page = await pdfDoc.getPage(pageNumber);
+            const viewport = page.getViewport({ scale: 1.5 });
+            
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+
+            await page.render({
+                canvasContext: context,
+                viewport: viewport
+            }).promise;
+
+            imageDisplay.src = canvas.toDataURL();
+        }
+
+        prevButton.addEventListener('click', async () => {
+            if (pdfDoc && currentPage > 1) {
+                currentPage--;
+                await renderPage(currentPage);
+                pageNum.textContent = `Page: ${currentPage} / ${pdfDoc.numPages}`;
+                clearBoundingBoxes();
+            }
+        });
+
+        nextButton.addEventListener('click', async () => {
+            if (pdfDoc && currentPage < pdfDoc.numPages) {
+                currentPage++;
+                await renderPage(currentPage);
+                pageNum.textContent = `Page: ${currentPage} / ${pdfDoc.numPages}`;
+                clearBoundingBoxes();
+            }
+        });
     </script>
 </body>
 </html>
