@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Average Color Finder</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
+        #color-box { width: 100px; height: 100px; display: inline-block; margin-top: 20px; border: 1px solid #000; }
+        .copy-btn { margin-top: 10px; padding: 5px 10px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Average Color Finder</h1>
+    <input type="file" id="imageInput" accept="image/*">
+    <br>
+    <canvas id="canvas" style="display:none;"></canvas>
+    <div id="color-box"></div>
+    <p id="color-info">Average Color: </p>
+    <button class="copy-btn" id="copy-btn">Copy Color</button>
+
+    <script>
+        const imageInput = document.getElementById('imageInput');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const colorBox = document.getElementById('color-box');
+        const colorInfo = document.getElementById('color-info');
+        const copyButton = document.getElementById('copy-btn');
+
+        let currentColor = '';
+
+        imageInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const img = new Image();
+                img.onload = () => {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+                    calculateAverageColor();
+                };
+                img.src = URL.createObjectURL(file);
+            }
+        });
+
+        function calculateAverageColor() {
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            let r = 0, g = 0, b = 0;
+
+            for (let i = 0; i < data.length; i += 4) {
+                r += data[i];     // Red
+                g += data[i + 1]; // Green
+                b += data[i + 2]; // Blue
+            }
+
+            const totalPixels = data.length / 4;
+            r = Math.floor(r / totalPixels);
+            g = Math.floor(g / totalPixels);
+            b = Math.floor(b / totalPixels);
+
+            const rgbColor = `rgb(${r}, ${g}, ${b})`;
+            const hexColor = rgbToHex(r, g, b);
+
+            currentColor = `${rgbColor} / ${hexColor}`;
+
+            colorBox.style.backgroundColor = rgbColor;
+            colorInfo.textContent = `Average Color: ${rgbColor} / ${hexColor}`;
+        }
+
+        function rgbToHex(r, g, b) {
+            return "#" + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+        }
+
+        copyButton.addEventListener('click', () => {
+            navigator.clipboard.writeText(currentColor).then(() => {
+                alert('Color copied to clipboard: ' + currentColor);
+            });
+        });
+    </script>
+</body>
+</html>
