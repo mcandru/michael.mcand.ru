@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Michael McAndrew | Vinyl Collection</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .vinyl-container {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .vinyl-item {
+            display: flex;
+            background-color: #fff;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        
+        .vinyl-cover {
+            width: 150px;
+            height: 150px;
+            object-fit: cover;
+            flex-shrink: 0;
+            border: 25px solid #222;
+        }
+        
+        .vinyl-info {
+            padding: 20px 30px 20px 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            margin-left: 20px;
+        }
+        
+        .vinyl-album {
+            font-size: 21px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #222;
+            letter-spacing: -0.022em;
+            line-height: 1.4705882353;
+        }
+        
+        .vinyl-artist {
+            font-size: 18px;
+            color: #666;
+            font-weight: 400;
+        }
+        
+        @media (max-width: 768px) {
+            .vinyl-item {
+                flex-direction: column;
+            }
+            
+            .vinyl-cover {
+                width: 100%;
+                height: auto;
+                border-width: 2px;
+            }
+            
+            .vinyl-info {
+                margin-left: 0;
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1><a href="./">Michael McAndrew</a></h1>
+    <h2>💿 My Vinyl Collection</h2>
+
+    <p>Don't judge too hard :)</p>
+    
+    <div class="vinyl-container">
+        <div class="vinyl-item">
+            <img src="./img/Journey_in_Satchidananda_(Alice_Coltrane).jpg" alt="Album cover" class="vinyl-cover" style="border-color: #b57564;">
+            <div class="vinyl-info">
+                <div class="vinyl-album">Journey in Satchidananda</div>
+                <div class="vinyl-artist">Alice Coltrane</div>
+            </div>
+        </div>
+        
+        <div class="vinyl-item">
+            <img src="./img/Rubber_Soul.png" alt="Album cover" class="vinyl-cover" style="border-color: #403a24;">
+            <div class="vinyl-info">
+                <div class="vinyl-album">Rubber Soul</div>
+                <div class="vinyl-artist">The Beatles</div>
+            </div>
+        </div>
+        
+        <div class="vinyl-item">
+            <img src="./img/The_Black_Keys_-_Delta_Kream.png" alt="Album cover" class="vinyl-cover" style="border-color: #655954;">
+            <div class="vinyl-info">
+                <div class="vinyl-album">Delta Kream</div>
+                <div class="vinyl-artist">The Black Keys</div>
+            </div>
+        </div>
+        
+        <div class="vinyl-item">
+            <img src="./img/Carole_King_-_Tapestry.jpg" alt="Album cover" class="vinyl-cover" style="border-color: #5f5256;">
+            <div class="vinyl-info">
+                <div class="vinyl-album">Tapestry</div>
+                <div class="vinyl-artist">Carole King</div>
+            </div>
+        </div>
+        
+        <div class="vinyl-item">
+            <img src="./img/Curtismayfield-1970lp.jpg" alt="Album cover" class="vinyl-cover" style="border-color: #ad856f;">
+            <div class="vinyl-info">
+                <div class="vinyl-album">Curtis</div>
+                <div class="vinyl-artist">Curtis Mayfield</div>
+            </div>
+        </div>
+        
+        <div class="vinyl-item">
+            <img src="./img/13_(The_Doors_album_-_cover_art).jpg" alt="Album cover" class="vinyl-cover" style="border-color: #9599a3;">
+            <div class="vinyl-info">
+                <div class="vinyl-album">13</div>
+                <div class="vinyl-artist">The Doors</div>
+            </div>
+        </div>
+        
+        <div class="vinyl-item">
+            <img src="./img/Duke+Ellington+The+Great+Duke+Ellington-434473.jpg" alt="Album cover" class="vinyl-cover" style="border-color: #2e3130;">
+            <div class="vinyl-info">
+                <div class="vinyl-album">The Great Duke Ellington</div>
+                <div class="vinyl-artist">Duke Ellington</div>
+            </div>
+        </div>
+        
+        <div class="vinyl-item">
+            <img src="./img/Travel-log_cover.jpg" alt="Album cover" class="vinyl-cover" style="border-color: #4c3e37;">
+            <div class="vinyl-info">
+                <div class="vinyl-album">JJ Cale</div>
+                <div class="vinyl-artist">Travel-Log</div>
+            </div>
+        </div>
+
+        <div class="vinyl-item">
+          <img src="./img/Album_66_296_ff6.jpg" alt="Album cover" class="vinyl-cover" style="border-color: #1d1b13;">
+          <div class="vinyl-info">
+              <div class="vinyl-album">Jungle</div>
+              <div class="vinyl-artist">Jungle</div>
+          </div>
+        </div>
+
+        <div class="vinyl-item">
+          <img src="./img/Midnight_blue.jpg" alt="Album cover" class="vinyl-cover" style="border-color: #0e2e56;">
+          <div class="vinyl-info">
+              <div class="vinyl-album">Midnight Blue</div>
+              <div class="vinyl-artist">Kenny Burrell</div>
+          </div>
+        </div>
+
+        <div class="vinyl-item">
+          <img src="./img/Quarters_King_Gizzard.jpeg" alt="Album cover" class="vinyl-cover" style="border-color: #9b7b67;">
+          <div class="vinyl-info">
+              <div class="vinyl-album">Quarters!</div>
+              <div class="vinyl-artist">King Gizzard & the Lizard Wizard</div>
+          </div>
+        </div>
+
+        <div class="vinyl-item">
+          <img src="./img/Michael_Kiwanuka_-_Kiwanuka.png" alt="Album cover" class="vinyl-cover" style="border-color: #3a2b22;">
+          <div class="vinyl-info">
+              <div class="vinyl-album">Kiwanuka</div>
+              <div class="vinyl-artist">Michael Kiwanuka</div>
+          </div>
+        </div>
+
+        <div class="vinyl-item">
+          <img src="./img/Bitches_brew.jpg" alt="Album cover" class="vinyl-cover" style="border-color: #806f63;">
+          <div class="vinyl-info">
+              <div class="vinyl-album">Bitches Brew</div>
+              <div class="vinyl-artist">Miles Davis</div>
+          </div>
+        </div>
+
+        <div class="vinyl-item">
+          <img src="./img/Kind_of_Blue_(1959,_CL_1355)_album_cover.jpg" alt="Album cover" class="vinyl-cover" style="border-color: #2d2322;">
+          <div class="vinyl-info">
+              <div class="vinyl-album">Kind of Blue</div>
+              <div class="vinyl-artist">Miles Davis</div>
+          </div>
+        </div>
+
+        <div class="vinyl-item">
+          <img src="./img/TheMoodyBlues-album-daysoffuturepassed.jpg" alt="Album cover" class="vinyl-cover" style="border-color: #8c787a;">
+          <div class="vinyl-info">
+              <div class="vinyl-album">Days of Future Passed</div>
+              <div class="vinyl-artist">The Moody Blues</div>
+          </div>
+        </div>
+
+        <div class="vinyl-item">
+          <img src="./img/Five_Leaves_Left.jpg" alt="Album cover" class="vinyl-cover" style="border-color: #396a52;">
+          <div class="vinyl-info">
+              <div class="vinyl-album">Five Leaves Left</div>
+              <div class="vinyl-artist">Nick Drake</div>
+          </div>
+        </div>
+
+        <div class="vinyl-item">
+          <img src="./img/Dark_Side_of_the_Moon.png" alt="Album cover" class="vinyl-cover" style="border-color: #060604;">
+          <div class="vinyl-info">
+              <div class="vinyl-album">The Dark Side of the Moon</div>
+              <div class="vinyl-artist">Pink Floyd</div>
+          </div>
+        </div>
+
+        <div class="vinyl-item">
+          <img src="./img/Queen_Greatest_Hits.png" alt="Album cover" class="vinyl-cover" style="border-color: #261812;">
+          <div class="vinyl-info">
+              <div class="vinyl-album">Greatest Hits</div>
+              <div class="vinyl-artist">Queen</div>
+          </div>
+        </div>
+
+        <div class="vinyl-item">
+          <img src="./img/Rory_Gallagher_-_Rory_Gallagher.jpg" alt="Album cover" class="vinyl-cover" style="border-color: #323232;">
+          <div class="vinyl-info">
+              <div class="vinyl-album">Rory Gallagher</div>
+              <div class="vinyl-artist">Rory Gallagher</div>
+          </div>
+        </div>
+
+        <div class="vinyl-item">
+          <img src="./img/mellow_dream_ryo_fukui.webp" alt="Album cover" class="vinyl-cover" style="border-color: #5ca8c6;">
+          <div class="vinyl-info">
+              <div class="vinyl-album">Mellow Dream</div>
+              <div class="vinyl-artist">Ryo Fukui</div>
+          </div>
+        </div>
+
+        <div class="vinyl-item">
+          <img src="./img/shuggie_otis_inspiration.jpg" alt="Album cover" class="vinyl-cover" style="border-color: #53524e;">
+          <div class="vinyl-info">
+              <div class="vinyl-album">Inspiration Information (Single)</div>
+              <div class="vinyl-artist">Shuggie Otis</div>
+          </div>
+        </div>
+
+        <div class="vinyl-item">
+          <img src="./img/TheMoodyBlues-album-daysoffuturepassed.jpg" alt="Album cover" class="vinyl-cover" style="border-color: #d2aea9;">
+          <div class="vinyl-info">
+              <div class="vinyl-album">Signed, Sealed & Delivered</div>
+              <div class="vinyl-artist">Stevie Wonder</div>
+          </div>
+        </div>
+
+        <div class="vinyl-item">
+          <img src="./img/VanMorrisonMoondance.jpg" alt="Album cover" class="vinyl-cover" style="border-color: #966a45;">
+          <div class="vinyl-info">
+              <div class="vinyl-album">Moondance</div>
+              <div class="vinyl-artist">Van Morrison</div>
+          </div>
+        </div>
+    </div>
+</body>
+</html>
