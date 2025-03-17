@@ -15,7 +15,12 @@ Last year I decided to do something about it, and invested an afternoon to figur
 way to keep tabs on what I read. Here's what I came up with:
 
 1. Find an article, either on my phone or computer
-2. Save it to [a Notion database](https://www.notion.so/mmcatcd/1ca10996d6eb492d805d8c3d3d08e9aa?v=805e06699fcb40b5abe944a9fdaefd27), either with the [Notion Web Clipper](https://www.notion.com/web-clipper)
+2. Save it to [a Notion database](https://www.notion.so/mmcatcd/1ca10996d6eb492d805d8c3d3d08e9aa?v=805e06699fcb40b5abe944a9fdaefd27), either with the [Notion Web Clipper](https://www.notion.com/web-clipper) on my desktop browser or the "Share" button in the browser on my Android.
+3. Optionally add tags to the article in the Notion database, to make it more discoverable
+(this I rarely do anymore to be honest)
+4. Read the article in Notion. Add comments, highlights, and edits as I go
+5. Some time in the future, I can search for the article I'm looking for, and read it,
+even if the article is no longer available on the web
 
 <figure>
     <img src="../img/notion-web-clipper.png" />
@@ -28,13 +33,6 @@ way to keep tabs on what I read. Here's what I came up with:
     <figcaption>Using Share to Notion in mobile browser</figcaption>
     </div>
 </figure>
-
-on my desktop browser or the "Share" button in the browser on my Android.
-3. Optionally add tags to the article in the Notion database, to make it more discoverable
-(this I rarely do anymore to be honest)
-4. Read the article in Notion. Add comments, highlights, and edits as I go
-5. Some time in the future, I can search for the article I'm looking for, and read it,
-even if the article is no longer available on the web
 
 I'm sure far more sophisticated workflows exist, but I love this because it's frictionless
 enough that I actually use it, gives me a single consistent reading experience via the

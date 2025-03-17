@@ -54,6 +54,10 @@ figure {
   margin: 20px auto;
 }
 
+figure figcaption {
+    text-align: center;
+}
+
 figure img {
   max-width: calc(100% + 40px);
   margin-left: -20px;
