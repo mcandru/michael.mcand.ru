@@ -51,7 +51,7 @@ a:hover {
 }
 
 figure {
-  margin: inherit;
+  margin: 20px auto;
 }
 
 figure img {
