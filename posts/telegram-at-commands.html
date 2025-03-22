@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Michael McAndrew | Adding @ Symbols to my Telegram LLM Bot</title>
+    <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+    <h1><a href="../">Michael McAndrew</a></h1>
+    <date>2025-03-22</date>
+    <h1>Adding @ Symbols to my Telegram LLM Bot</h1>
+<p>I've been working on a Telegram bot called "LLM" for the past few weeks. Its interface is very similar to <a href="https://chatgpt.com/">ChatGPT</a>, <a href="https://claude.ai/new">Claude</a>, or <a href="https://gemini.google.com/app">Gemini</a>. You can start a conversation by creating a new Telegram group and adding the bot. From there, you can chat with it, attach images, audio clips (if the model supports them), videos, and files, and query them directly.</p>
+<figure>
+    <div>
+    <img src="../img/llm-telegram-conversation.png" />
+    <figcaption>A multi-modal conversation with the Telegram bot</figcaption>
+    </div>
+</figure>
+
+<p>This project is intended purely for my own learning, but it isn't just a complete clone of the major model provider chat tools. One difference is that it's model-agnostic. Right now, it supports models from Anthropic, OpenAI, and Google. You can pick whichever model best suits your conversation and even switch models mid-conversation if needed.</p>
+<figure>
+    <div>
+    <img src="../img/llm-telegram-model-selection.png" />
+    <figcaption>Listing the choice of available models to use</figcaption>
+    </div>
+</figure>
+
+<p>I've found this especially useful for taking advantage of a multi-modal model for specific tasks. For instance, I recently needed to process some handwritten notes. I used Gemini to OCR the handwriting, since I find it performs best at that, and then switched to Claude Sonnet 3.7 to analyze and answer questions based on the extracted text.</p>
+<p>This kind of "power user" feature isn’t necessary for most people, but I love using it in <a href="https://www.cursor.com/">Cursor</a>, so I wanted that same level of control on my phone too.</p>
+<h2>@ Symbols</h2>
+<p>Speaking of Cursor, one of its standout power-user features is <a href="https://docs.cursor.com/context/@-symbols/overview">@ Symbols</a>. These are inline commands you can add to messages to guide the model’s response in a specific way.</p>
+<h3>@link</h3>
+<p>One example is the <code>@link</code> command, which references a specific URL. You can use it like this:</p>
+<blockquote>
+<p>Can you summarise this Wikipedia article? @https://en.wikipedia.org/wiki/The_True_Record</p>
+</blockquote>
+<p>Since this fits well with the "power user" theme, I thought it’d be a fun feature to add. It works by using regex to detect <code>@https://</code> text. For each URL, the bot scrapes the page using <a href="https://www.firecrawl.dev/">Firecrawl</a>, which conveniently returns the content in Markdown. I then pass that into the prompt context.</p>
+<p>I like this pattern for cases where I need reliable information quickly and don’t want the LLM to hallucinate its answer. Often, I can find the exact source page I want it to use. Major model providers offer "web search" tools, but this method gives you more control.</p>
+<figure>
+    <div>
+    <img src="../img/llm-telegram-at-link.jpg" />
+    <figcaption>Using @link to ask questions about a Wiki</figcaption>
+    </div>
+</figure>
+
+<h3>@web</h3>
+<p>Speaking of web search, I also added an <code>@web</code> command. It works similarly to <code>@link</code> but performs a live search. The process is:</p>
+<ol>
+<li>The bot detects the <code>@web</code> command in a message with regex.</li>
+<li>It makes an LLM call to create a concise search query.</li>
+<li>The query is executed using the <a href="https://brave.com/search/api/">Brave Search API</a>.</li>
+<li>The results are added directly to the prompt context.</li>
+</ol>
+<p>In this way, we're not leaving it up to the model
+to decide to make a web search tool call, we're forcing the search results into the input
+context, which gives us a bit more control, and increases the likelihood of the results
+actually being correct.</p>
+<figure>
+    <div>
+    <img src="../img/llm-telegram-at-web.jpg" />
+    <figcaption>Using @web to get John Green's actual most recent book</figcaption>
+    </div>
+</figure>
+
+<p>I'm going to play around with these new <code>@</code> commands for a bit and see how useful they
+are. I really ought to write a post with some more technical details about how the LLM
+bot works too.</p>
+</body>
+</html>
