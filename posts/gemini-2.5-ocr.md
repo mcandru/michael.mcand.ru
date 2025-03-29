@@ -3,6 +3,8 @@ title: Using Gemini 2.5 Pro for OCR with Bounding Boxes
 date: 2025-03-28
 ---
 
+## Using Gemini 2.5 Pro for OCR with Bounding Boxes
+
 There's quite a bit of hype around multi-modal LLMs OCR capabilities at the moment.
 The benchmarks seem to conclude that they are in fact very good at extracting text
 from images now. But there does seem to be an important missing piece of the puzzle

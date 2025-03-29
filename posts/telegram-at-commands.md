@@ -4,7 +4,7 @@ date: 2025-03-22
 ---
 
 
-# Adding @ Symbols to my Telegram LLM Bot
+## Adding @ Symbols to my Telegram LLM Bot
 
 I've been working on a Telegram bot called "LLM" for the past few weeks. Its interface is very similar to [ChatGPT](https://chatgpt.com/), [Claude](https://claude.ai/new), or [Gemini](https://gemini.google.com/app). You can start a conversation by creating a new Telegram group and adding the bot. From there, you can chat with it, attach images, audio clips (if the model supports them), videos, and files, and query them directly.
 
