@@ -72,6 +72,7 @@ def convert_markdown_to_html(markdown_file, output_dir=None):
 <body>
     <h1><a href="../">Michael McAndrew</a></h1>
     {date_html}
+    <h2>{title}</h2>
     {html_content}
 </body>
 </html>

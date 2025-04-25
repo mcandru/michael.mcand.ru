@@ -9,6 +9,7 @@
 <body>
     <h1><a href="../">Michael McAndrew</a></h1>
     <date>2025-04-21</date>
+    <h2>Making Long Context Prompts Efficient in my Telegram Bot</h2>
     <p>Not long after I <a href="https://michael.mcand.ru/posts/telegram-at-commands.html">added <code>@</code> symbol support</a> to my Telegram LLM bot, Simon Willison released an update to the <a href="https://simonwillison.net/2025/Apr/7/long-context-llm/#improving-llm-s-support-for-long-context-models"><code>llm</code> CLI and library</a> with a feature that turned out to be a very nice fit for improving what I had just built. The feature is called <em>Fragments</em>, and it’s designed to store long pieces of input context in a DB more efficient way.</p>
 <p>To quickly recap, my original implementation of <code>@link</code> was to detect an inline URL with regex, fetch the associated content using <a href="https://www.firecrawl.dev/">Firecrawl</a>, and insert it directly into the prompt. This works just fine, but because every prompt and its response is stored in an SQLite DB in my telegram bot, if I made multiple prompts against the same <code>@link</code>, it would store a duplicate of that long piece of context as part of the prompt every time.</p>
 <p>Fragments offers a better way to handle this.</p>
