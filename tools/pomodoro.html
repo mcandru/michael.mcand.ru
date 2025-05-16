@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pomodoro Timer</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            text-align: center;
+            background-color: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #333;
+            margin-top: 0;
+        }
+        
+        .timer {
+            font-size: 5rem;
+            font-weight: bold;
+            color: #333;
+            margin: 1rem 0;
+        }
+        
+        .buttons {
+            margin: 1.5rem 0;
+        }
+        
+        button {
+            background-color: #4caf50;
+            border: none;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            cursor: pointer;
+            border-radius: 5px;
+            margin: 0 0.5rem;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        button#reset {
+            background-color: #f44336;
+        }
+        
+        button#reset:hover {
+            background-color: #d32f2f;
+        }
+        
+        .mode-selector {
+            margin: 1.5rem 0;
+        }
+        
+        .mode-btn {
+            background-color: #ddd;
+            color: #333;
+            border: none;
+            padding: 0.5rem 1rem;
+            margin: 0 0.25rem;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        
+        .mode-btn.active {
+            background-color: #2196F3;
+            color: white;
+        }
+        
+        .session-count {
+            color: #666;
+            font-size: 1.1rem;
+            margin-top: 1rem;
+        }
+        
+        .progress-bar {
+            height: 10px;
+            background-color: #e0e0e0;
+            border-radius: 5px;
+            margin: 1rem 0;
+            overflow: hidden;
+        }
+        
+        .progress {
+            height: 100%;
+            background-color: #4caf50;
+            width: 0%;
+            transition: width 1s linear;
+        }
+        
+        .work-mode .progress {
+            background-color: #f44336;
+        }
+        
+        .short-break-mode .progress {
+            background-color: #2196F3;
+        }
+        
+        .long-break-mode .progress {
+            background-color: #9c27b0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Pomodoro Timer</h1>
+        
+        <div class="mode-selector">
+            <button class="mode-btn active" data-mode="work">Work</button>
+            <button class="mode-btn" data-mode="shortBreak">Short Break</button>
+            <button class="mode-btn" data-mode="longBreak">Long Break</button>
+        </div>
+        
+        <div class="progress-bar">
+            <div class="progress"></div>
+        </div>
+        
+        <div class="timer" id="timer">30:00</div>
+        
+        <div class="buttons">
+            <button id="start">Start</button>
+            <button id="pause">Pause</button>
+            <button id="reset">Reset</button>
+        </div>
+        
+        <div class="session-count">
+            Completed: <span id="completed">0</span> pomodoros
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Timer settings
+            const timerSettings = {
+                work: 1 * 60, // 30 minutes in seconds
+                shortBreak: 5 * 60, // 5 minutes in seconds
+                longBreak: 15 * 60 // 15 minutes in seconds
+            };
+            
+            // DOM elements
+            const timerDisplay = document.getElementById('timer');
+            const startBtn = document.getElementById('start');
+            const pauseBtn = document.getElementById('pause');
+            const resetBtn = document.getElementById('reset');
+            const modeButtons = document.querySelectorAll('.mode-btn');
+            const completedDisplay = document.getElementById('completed');
+            const progressBar = document.querySelector('.progress');
+            const container = document.querySelector('.container');
+            
+            // Timer variables
+            let timer;
+            let timeRemaining = timerSettings.work;
+            let isRunning = false;
+            let currentMode = 'work';
+            let completedPomodoros = 0;
+            let originalTime = timerSettings.work;
+            
+            // Format time as MM:SS
+            function formatTime(seconds) {
+                const minutes = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }
+            
+            // Update timer display
+            function updateDisplay() {
+                timerDisplay.textContent = formatTime(timeRemaining);
+                const progress = ((originalTime - timeRemaining) / originalTime) * 100;
+                progressBar.style.width = `${progress}%`;
+            }
+            
+            // Start timer
+            function startTimer() {
+                if (isRunning) return;
+                
+                isRunning = true;
+                
+                timer = setInterval(() => {
+                    if (timeRemaining > 0) {
+                        timeRemaining--;
+                        updateDisplay();
+                    } else {
+                        // Timer complete
+                        clearInterval(timer);
+                        playAlarm();
+                        
+                        if (currentMode === 'work') {
+                            completedPomodoros++;
+                            completedDisplay.textContent = completedPomodoros;
+                            
+                            // After every 4 pomodoros, take a long break
+                            if (completedPomodoros % 4 === 0) {
+                                switchMode('longBreak');
+                            } else {
+                                switchMode('shortBreak');
+                            }
+                        } else {
+                            switchMode('work');
+                        }
+                        
+                        isRunning = false;
+                    }
+                }, 1000);
+            }
+            
+            // Pause timer
+            function pauseTimer() {
+                clearInterval(timer);
+                isRunning = false;
+            }
+            
+            // Reset timer
+            function resetTimer() {
+                pauseTimer();
+                timeRemaining = timerSettings[currentMode];
+                originalTime = timeRemaining;
+                updateDisplay();
+            }
+            
+            // Switch between modes (work, short break, long break)
+            function switchMode(mode) {
+                currentMode = mode;
+                timeRemaining = timerSettings[mode];
+                originalTime = timeRemaining;
+                
+                // Update UI to reflect current mode
+                modeButtons.forEach(btn => {
+                    if (btn.dataset.mode === mode) {
+                        btn.classList.add('active');
+                    } else {
+                        btn.classList.remove('active');
+                    }
+                });
+                
+                // Update container class for different progress bar colors
+                container.className = 'container';
+                container.classList.add(`${mode}-mode`);
+                
+                updateDisplay();
+                pauseTimer();
+            }
+            
+            // Play alarm sound when timer ends
+            function playAlarm() {
+                try {
+                    const audio = new Audio('../sounds/dingdong.mp3');
+                    audio.play();
+                } catch (error) {
+                    console.log("Browser doesn't support Audio API");
+                }
+            }
+            
+            // Event listeners
+            startBtn.addEventListener('click', startTimer);
+            pauseBtn.addEventListener('click', pauseTimer);
+            resetBtn.addEventListener('click', resetTimer);
+            
+            modeButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    switchMode(btn.dataset.mode);
+                });
+            });
+            
+            // Initialize display
+            updateDisplay();
+        });
+    </script>
+</body>
+</html>
