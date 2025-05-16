@@ -10,6 +10,7 @@ For a long time my "organisational system" has been a hand-written daily list of
 So I decided to pretty much entirely ditch the hand-written list in favour of Google Calendar tasks instead. This may seem incredibly simple, but it has made a genuinely huge impact on my life, and my organisation.
 
 Here's why I really like Google Calendar tasks:
+
 - They include both a description and a time. If a task doesn’t need to be done today, I can figure out when it might make sense to slot it in instead.
 
 - They appear in my calendar alongside meetings and other events, which makes it easier for me to find a block of time to complete the task.
