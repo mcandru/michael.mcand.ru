@@ -181,7 +181,9 @@
             
             // Update timer display
             function updateDisplay() {
-                timerDisplay.textContent = formatTime(timeRemaining);
+                const formattedTime = formatTime(timeRemaining);
+                timerDisplay.textContent = formattedTime;
+                document.title = `${formattedTime} - Pomodoro Timer`;
                 const progress = ((originalTime - timeRemaining) / originalTime) * 100;
                 progressBar.style.width = `${progress}%`;
             }
