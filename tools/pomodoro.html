@@ -171,11 +171,12 @@
             let currentMode = 'work';
             let completedPomodoros = 0;
             let originalTime = timerSettings.work;
+            let lastDisplayUpdate = 0;
             
             // Format time as MM:SS
             function formatTime(seconds) {
                 const minutes = Math.floor(seconds / 60);
-                const secs = seconds % 60;
+                const secs = Math.floor(seconds % 60);
                 return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
             }
             
@@ -193,7 +194,9 @@
                 if (isRunning) return;
                 
                 isRunning = true;
+                lastDisplayUpdate = performance.now();
                 
+                // Use setInterval for reliable timing
                 timer = setInterval(() => {
                     if (timeRemaining > 0) {
                         timeRemaining--;
@@ -201,6 +204,7 @@
                     } else {
                         // Timer complete
                         clearInterval(timer);
+                        isRunning = false;
                         playAlarm();
                         
                         if (currentMode === 'work') {
@@ -216,8 +220,6 @@
                         } else {
                             switchMode('work');
                         }
-                        
-                        isRunning = false;
                     }
                 }, 1000);
             }
