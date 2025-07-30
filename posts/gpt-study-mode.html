@@ -11,12 +11,12 @@
     <date>2025-07-30</date>
     <h2>Using the ChatGPT Study Mode System Prompt</h2>
     <p>Yesterday, OpenAI released <a href="https://openai.com/index/chatgpt-study-mode/">study mode</a>, what I would call a <em>persona</em> on top of ChatGPT that encourages learning.</p>
-<p>I was very interested to investigate it in more details I have used language models for learning for a while, and found that the ability to ask question after question until I feel like I fully understand something is a fantastic way to learn. I am also a soon to be college lecturer, so I guess I wanted to see if I'll be out of a job.</p>
-<p>In the release article, the authors hinted that they achieved this through a custom system prompt:</p>
+<p>I have used language models for learning for a while, and found that the ability to ask question after question until I feel like I fully understand something is a fantastic way to learn. I am also a soon to be college lecturer, so I wanted to see if I will soon be out of a job.</p>
+<p>In the release article, the authors hinted that study mode is essentially just a custom system prompt:</p>
 <blockquote>
 <p>Under the hood, study mode is powered by custom system instructions we’ve written in collaboration with teachers, scientists, and pedagogy experts to reflect a core set of behaviors that support deeper learning including: ​​encouraging active participation, managing cognitive load, proactively developing metacognition and self reflection, fostering curiosity, and providing actionable and supportive feedback. These behaviors are based on longstanding research in learning science and shape how study mode responds to students.</p>
 </blockquote>
-<p>Simon Willison immediately <a href="https://simonwillison.net/2025/Jul/29/openai-introducing-study-mode/">extracted the system prompt</a>. This got me thinking, what would happen if I gave any other model the same system prompt? I'm guessing it would produce pretty similar behaviour?</p>
+<p>Simon Willison immediately <a href="https://simonwillison.net/2025/Jul/29/openai-introducing-study-mode/">extracted the system prompt</a>. This got me thinking, would the system prompt given to another model like Claude Sonnet behave in a similar way?</p>
 <p>I added it as a custom system prompt option to <a href="https://github.com/mmcatcd/telegram-llm/blob/master/system_prompts/study_mode.md">my own conversational AI tool, telegram-llm</a>, created a conversation using Claude Sonnet 4, and sure enough it seemed to produce a pretty similar experience. <a href="./study-mode-sonnet-4-messages.html">Here's</a> a conversation that I had with it about the event loop in Node.js.</p>
 <h2>The Results</h2>
 <p>I definitely need to do some more testing, both with the real ChatGPT study mode, and my own concoction, but so far here's what I've noticed:</p>
