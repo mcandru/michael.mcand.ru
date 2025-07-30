@@ -5,8 +5,6 @@ date: 2025-07-30
 
 Yesterday, OpenAI released [study mode](https://openai.com/index/chatgpt-study-mode/), what I would call a *persona* on top of ChatGPT that encourages learning.
 
-I have used language models for learning for a while, and found that the ability to ask question after question until I feel like I fully understand something is a fantastic way to learn. I am also a soon to be college lecturer, so I wanted to see if I will soon be out of a job.
-
 In the release article, the authors hinted that study mode is essentially just a custom system prompt:
 
 > Under the hood, study mode is powered by custom system instructions we’ve written in collaboration with teachers, scientists, and pedagogy experts to reflect a core set of behaviors that support deeper learning including: ​​encouraging active participation, managing cognitive load, proactively developing metacognition and self reflection, fostering curiosity, and providing actionable and supportive feedback. These behaviors are based on longstanding research in learning science and shape how study mode responds to students.
