@@ -8,6 +8,8 @@ last_updated: "2025-08-07"
 
 This file serves as a note to document everything that I learn about the practice of teaching.
 
+> If you can't explain it simply, you don't understand it well enough
+
 ## Checks for Pedagogy
 
 Adapted from Grant Sanderson's fantastic talk, ["Math's pedagogical curse"](https://www.youtube.com/watch?v=UOuxo6SA8Uc).
@@ -49,6 +51,8 @@ I have frequently heard that some subjects most enjoyed in education were not sp
 Richard Feynman once said "You must not fool yourself and you are the easiest person to fool", when speaking of practicing science. The role of the teacher is to provide ways to test whether a student is fooling themselves in their understanding or not.
 
 A teacher may provide clear lectures, and well thought-out tests, and these are important, and do help, but that does not mean that they are testing whether a student has fooled themselves or not.
+
+I don't think that I necessarily agree entirely that you are not learning unless you're stuck though. Sometimes you're stuck because you're learning in the wrong way for you, and it could be much easier to learn from a different angle.
 
 ### 3. The goal of teaching is independent thought
 
