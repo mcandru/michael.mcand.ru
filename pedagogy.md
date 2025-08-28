@@ -24,7 +24,7 @@ In computer science, this could be framed as some problem to get a computer to d
 
 ### 2. Are new abstractions preceeded with concrete examples?
 
-Start with the base case, and work *towards* the general case.
+Start with the base case, and work _towards_ the general case.
 
 ### 3. Are core ideas given diagrams?
 
@@ -57,3 +57,13 @@ I don't think that I necessarily agree entirely that you are not learning unless
 ### 3. The goal of teaching is independent thought
 
 Your students aren't going to be in college forever. They have come to learn how to gain knowledge, and apply it. Teaching should incentivise students to think independently. But, it should not necessarily require it. Some students may already be capable independent thinkers, other not quite.
+
+## Course Design Process
+
+1. Break the course topic into a section for each week of the course. For example, if the course is 12 weeks long, break it into 12 sections. A week is the atomic time for a course.
+2. For each week, split it into high-level headings and a set of bullet points for each heading of what should be covered.
+3. Flesh out each high-level heading more with the help of LLMs. They can be particularly useful for adding "boilerplate" explanations, that don't really require difficult concepts, but are more just to empart relatively straightforward information. They can also be good at providing simple examples, although they often fall short for more complex topics. They are very good at taking a toy example, and consistently reusing it throughout for consistency.
+4. Proof read your work for silly mistakes, and things the LLMs didn't do well.
+5. Build _tests_ against each week of work. This will mostly be in the form of a lab. Labs should be quite guided generally, simple to follow, and complete. The goal here isn't really to challenge the student much, more just to familiarise them with the topic practically.
+6. Write assignments. Once you have fleshed out the contents, and built small ways to test the student knowledge of the content, you need to build more complex tasks for them to complete. Ideally, they should mimick reality as closely as possible, and contain a mixture of concrete problems to solve, and open-ended, creative problems for bonus points. Ideally, there should be more than one, so that students can get interim feedback, and they should build on each other.
+7. Polish lecture materials. This will include building out high-fidelity explanations, examples, and analogies to help students build mental models of what they are learning. It should also include simplifying, demystifying, removing jargon, and general shortening the length of things. This is the most _nice to have_ step. The course can still go ahead without this.
