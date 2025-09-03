@@ -67,3 +67,15 @@ Your students aren't going to be in college forever. They have come to learn how
 5. Build _tests_ against each week of work. This will mostly be in the form of a lab. Labs should be quite guided generally, simple to follow, and complete. The goal here isn't really to challenge the student much, more just to familiarise them with the topic practically.
 6. Write assignments. Once you have fleshed out the contents, and built small ways to test the student knowledge of the content, you need to build more complex tasks for them to complete. Ideally, they should mimick reality as closely as possible, and contain a mixture of concrete problems to solve, and open-ended, creative problems for bonus points. Ideally, there should be more than one, so that students can get interim feedback, and they should build on each other.
 7. Polish lecture materials. This will include building out high-fidelity explanations, examples, and analogies to help students build mental models of what they are learning. It should also include simplifying, demystifying, removing jargon, and general shortening the length of things. This is the most _nice to have_ step. The course can still go ahead without this.
+
+## Assignments
+
+There are certain properties that you should try to achieve with assignments that you set:
+
+1. **Easy to Pass:** the assignment provide enough concrete guidance so that, unless you're lazy and just didn't bother, you can get a passing mark.
+2. **Extra Mile:** for students who are interested, and want to challenge themselves, the assignment gives them the scope to do so. The extra mile should be purposefully vague, and not worth many marks. Typically, the students who are truly interested and have the time won't be motivated much by the extra marks anyway.
+3. **Clear Marking Scheme:** it should be clear from the marking scheme what your assignment submission should do to get certain marks. Ideally, you should be able to accurately estimate the grade that you will get from your own submission just by looking at it. This also has the added benefit that I can easily explain a grade to a student if they wish to dispute it.
+4. **No Overlap:** there should be sufficient novelty from other modules to make for a level playing field, and to keep things interesting for everyone
+5. **Demonstrable Learning Objectives:** the assignments should be related to what is taught in the module, and should in turn require the use of what is taught in class to complete.
+
+These properties are surprisingly difficult to achieve when setting assignments. If you set an open ended assignment to allow students to be creative, properties (3), (4) and sometimes (5) can be difficult to achieve. However, if you set an assignment that is too strict, you risk choosing something that isn't of interest to students, and may not have a sufficient (2).
