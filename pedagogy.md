@@ -79,3 +79,10 @@ There are certain properties that you should try to achieve with assignments tha
 5. **Demonstrable Learning Objectives:** the assignments should be related to what is taught in the module, and should in turn require the use of what is taught in class to complete.
 
 These properties are surprisingly difficult to achieve when setting assignments. If you set an open ended assignment to allow students to be creative, properties (3), (4) and sometimes (5) can be difficult to achieve. However, if you set an assignment that is too strict, you risk choosing something that isn't of interest to students, and may not have a sufficient (2).
+
+## A Recipe for Lecturing
+
+1. Write the agenda on the whiteboard at the start of the lecture - this can remain on the board through the lecture so that students can keep the high-level view of what's being discussed throughout
+2. Keep introductions to topics brief - no need to give a boring history that nobody cares about
+3. Show them how to use it first
+4. Dig into specifics only after showing them how to use it first
