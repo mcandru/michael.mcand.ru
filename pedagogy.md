@@ -86,3 +86,13 @@ These properties are surprisingly difficult to achieve when setting assignments.
 2. Keep introductions to topics brief - no need to give a boring history that nobody cares about
 3. Show them how to use it first
 4. Dig into specifics only after showing them how to use it first
+
+## About Me
+
+I have increasingly been asked "What do you do?", or more recently "What do you teach?". It's a good question. I could answer with something like: "Oh I teach computer programming" or "Computer stuff" or "Computer Science" if I want to sound fancy.
+
+I have made up a couple of different job titles for myself over the years. When I started at Inscribe, my job title was "Detector Engineer". I got computers to detect fraud for me. Later, when my job became less clear-cut, I changed my title to "Prompt Engineer" in line with the fad at the time. I refused to change recently to "Context Engineer" though because it's far too serious.
+
+So what job title should I come up with for this job? Well, there was a discussion recently about a name for a new 6th department in the Institute. My suggestion was "The Department of Computer Art", as a play on a "Department of Computer Science". Rather fitting, considering the Institutes position as a place of education I thought. I have always thought of "Computer Science" as much more of an art anyway, especially when you actually need to get computers to do what you want them to. Could I call myself a "Lecturer in Computer Art"? It sounds too much like I'm getting Computers to make art for me, rather than teaching the art of getting computers to do things for me.
+
+Anyway, long ramble over, I lecture in "Getting computers to do what you ask them to", at the Institute of Art, Design and Technology Dún Laoighaire. And every year it keeps getting a little easier to get them to do what you want them to.
