@@ -1,5 +1,5 @@
 ---
-title: Should we teach Python or Principles?
+title: Should we Teach Python or Principles?
 date: 2025-11-01
 ---
 
