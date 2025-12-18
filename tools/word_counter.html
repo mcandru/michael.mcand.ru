@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Word Counter</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    textarea {
+      width: 100%;
+      margin-bottom: 10px;
+      padding: 10px;
+      font-size: 1rem;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    #output {
+      margin-top: 20px;
+      font-size: 1.2rem;
+      font-weight: bold;
+    }
+    .stats {
+      margin-top: 10px;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+  <h1>Word Counter</h1>
+  <label for="text-input">Paste your text here:</label>
+  <textarea id="text-input" rows="10" placeholder="Enter or paste your text here..."></textarea>
+
+  <button onclick="countWords()">Count Words</button>
+
+  <div id="output"></div>
+
+  <script>
+    function countWords() {
+      const textInput = document.getElementById('text-input').value;
+      const output = document.getElementById('output');
+
+      if (!textInput.trim()) {
+        output.innerHTML = '<p style="color:red;">Please enter some text.</p>';
+        return;
+      }
+
+      // Count words by splitting on whitespace
+      const words = textInput.trim().split(/\s+/);
+      const wordCount = words.length;
+
+      // Count characters (with and without spaces)
+      const charCount = textInput.length;
+      const charCountNoSpaces = textInput.replace(/\s/g, '').length;
+
+      // Count lines
+      const lineCount = textInput.split(/\n/).length;
+
+      // Display the results
+      output.innerHTML = `
+        <p>Word Count: ${wordCount}</p>
+        <div class="stats">
+          <p>Characters (with spaces): ${charCount}</p>
+          <p>Characters (without spaces): ${charCountNoSpaces}</p>
+          <p>Lines: ${lineCount}</p>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>
