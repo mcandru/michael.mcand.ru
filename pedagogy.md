@@ -60,13 +60,20 @@ Your students aren't going to be in college forever. They have come to learn how
 
 ## Course Design Process
 
-1. Break the course topic into a section for each week of the course. For example, if the course is 12 weeks long, break it into 12 sections. A week is the atomic time for a course.
+1. Break the course topic into a section for each week of the course. For example, if the course is 12 weeks long, break it into 12 sections. A week is the atomic unit of time for a course.
 2. For each week, split it into high-level headings and a set of bullet points for each heading of what should be covered.
 3. Flesh out each high-level heading more with the help of LLMs. They can be particularly useful for adding "boilerplate" explanations, that don't really require difficult concepts, but are more just to empart relatively straightforward information. They can also be good at providing simple examples, although they often fall short for more complex topics. They are very good at taking a toy example, and consistently reusing it throughout for consistency.
 4. Proof read your work for silly mistakes, and things the LLMs didn't do well.
 5. Build _tests_ against each week of work. This will mostly be in the form of a lab. Labs should be quite guided generally, simple to follow, and complete. The goal here isn't really to challenge the student much, more just to familiarise them with the topic practically.
-6. Write assignments. Once you have fleshed out the contents, and built small ways to test the student knowledge of the content, you need to build more complex tasks for them to complete. Ideally, they should mimick reality as closely as possible, and contain a mixture of concrete problems to solve, and open-ended, creative problems for bonus points. Ideally, there should be more than one, so that students can get interim feedback, and they should build on each other.
+6. Write assignments. Once you have fleshed out the contents, and built small ways to test the student knowledge of the content, you need to build more complex tasks for them to complete. Ideally, they should mimic reality as closely as possible, and contain a mixture of concrete problems to solve, and open-ended, creative problems for bonus points. Ideally, there should be more than one, so that students can get interim feedback, and they should build on understanding from each other. Try to avoid several assignments with hard dependencies between each other to cater for students who do not complete one assignment.
 7. Polish lecture materials. This will include building out high-fidelity explanations, examples, and analogies to help students build mental models of what they are learning. It should also include simplifying, demystifying, removing jargon, and general shortening the length of things. This is the most _nice to have_ step. The course can still go ahead without this.
+
+## A Recipe for Lecturing
+
+1. Write the agenda on the whiteboard at the start of the lecture - this can remain on the board through the lecture so that students can keep the high-level view of what's being discussed throughout
+2. Keep introductions to topics brief - no need to give a boring history that nobody cares about
+3. Show them how to use it first
+4. Dig into specifics only after showing them how to use it first
 
 ## Assignments
 
@@ -80,12 +87,11 @@ There are certain properties that you should try to achieve with assignments tha
 
 These properties are surprisingly difficult to achieve when setting assignments. If you set an open ended assignment to allow students to be creative, properties (3), (4) and sometimes (5) can be difficult to achieve. However, if you set an assignment that is too strict, you risk choosing something that isn't of interest to students, and may not have a sufficient (2).
 
-## A Recipe for Lecturing
+## Grading
 
-1. Write the agenda on the whiteboard at the start of the lecture - this can remain on the board through the lecture so that students can keep the high-level view of what's being discussed throughout
-2. Keep introductions to topics brief - no need to give a boring history that nobody cares about
-3. Show them how to use it first
-4. Dig into specifics only after showing them how to use it first
+- Create a rigid, granular marking scheme. The more granular the marking scheme, the more reproducible a grade will be.
+- Grade exams and some assignments by question or section. Grade larger projects with a broader scope by submission.
+- The first few submissions graded will take four times longer than the average, this is normal.
 
 ## About Me
 
