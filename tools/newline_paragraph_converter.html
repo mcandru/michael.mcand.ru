@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Newline to Paragraph Converter</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 2rem;
+        background: #f5f5f5;
+      }
+
+      h1 {
+        color: #333;
+        margin-bottom: 0.5rem;
+      }
+
+      .subtitle {
+        color: #666;
+        margin-bottom: 2rem;
+      }
+
+      label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: #444;
+      }
+
+      textarea {
+        width: 100%;
+        height: 150px;
+        padding: 1rem;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        font-family: monospace;
+        font-size: 14px;
+        resize: vertical;
+        transition: border-color 0.2s;
+      }
+
+      textarea:focus {
+        outline: none;
+        border-color: #0066cc;
+      }
+
+      .output-area {
+        background: white;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        padding: 1rem;
+        min-height: 150px;
+        font-family: monospace;
+        font-size: 14px;
+        word-break: break-all;
+        white-space: pre-wrap;
+      }
+
+      .button-row {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+      }
+
+      button {
+        padding: 0.6rem 1.2rem;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 0.2s;
+      }
+
+      .copy-btn {
+        background: #0066cc;
+        color: white;
+      }
+
+      .copy-btn:hover {
+        background: #0055aa;
+      }
+
+      .clear-btn {
+        background: #e0e0e0;
+        color: #333;
+      }
+
+      .clear-btn:hover {
+        background: #d0d0d0;
+      }
+
+      .copied {
+        background: #28a745 !important;
+      }
+
+      .section {
+        margin-bottom: 1.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Newline → Paragraph Converter</h1>
+    <p class="subtitle">
+      Paste text with line breaks and get it wrapped in &lt;p&gt; tags
+    </p>
+
+    <div class="section">
+      <label for="input">Paste your text here:</label>
+      <textarea
+        id="input"
+        placeholder="Paste text with line breaks here..."
+      ></textarea>
+    </div>
+
+    <div class="section">
+      <label>Output:</label>
+      <div class="output-area" id="output"></div>
+      <div class="button-row">
+        <button class="copy-btn" id="copyBtn" onclick="copyOutput()">
+          Copy to Clipboard
+        </button>
+        <button class="clear-btn" onclick="clearAll()">Clear</button>
+      </div>
+    </div>
+
+    <script>
+      const input = document.getElementById("input");
+      const output = document.getElementById("output");
+      const copyBtn = document.getElementById("copyBtn");
+
+      input.addEventListener("input", convert);
+
+      function convert() {
+        const text = input.value;
+
+        if (!text.trim()) {
+          output.textContent = "";
+          return;
+        }
+
+        // Split by newlines, filter out empty lines, wrap each in <p> tags
+        const paragraphs = text
+          .split(/\r?\n/)
+          .filter((line) => line.trim() !== "")
+          .map((line) => `<p>${line.trim()}</p>`)
+          .join("");
+
+        output.textContent = paragraphs;
+      }
+
+      function copyOutput() {
+        const text = output.textContent;
+        if (!text) return;
+
+        navigator.clipboard.writeText(text).then(() => {
+          copyBtn.textContent = "Copied!";
+          copyBtn.classList.add("copied");
+          setTimeout(() => {
+            copyBtn.textContent = "Copy to Clipboard";
+            copyBtn.classList.remove("copied");
+          }, 1500);
+        });
+      }
+
+      function clearAll() {
+        input.value = "";
+        output.textContent = "";
+      }
+    </script>
+  </body>
+</html>
