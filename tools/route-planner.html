@@ -1,0 +1,1027 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Route Planner</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+      /* --- Africa Twin Dakar palette --- */
+      :root {
+        --red: #cc1b2b;
+        --red-light: #f2d5d8;
+        --blue: #5ba4cf;
+        --blue-light: #eaf2f8;
+        --blue-pale: #f4f8fb;
+        --white: #ffffff;
+        --text: #2a3440;
+        --text-light: #6b7c8a;
+        --border: #d0dde6;
+        --border-light: #e8eff4;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        display: flex;
+        height: 100vh;
+      }
+
+      #sidebar {
+        width: 340px;
+        min-width: 340px;
+        background: var(--white);
+        color: var(--text);
+        padding: 20px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        border-right: 3px solid var(--red);
+      }
+
+      #sidebar h1 {
+        font-size: 1.4em;
+        color: var(--red);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .section {
+        background: var(--blue-pale);
+        border-radius: 8px;
+        padding: 14px;
+        border: 1px solid var(--border-light);
+      }
+
+      .section h2 {
+        font-size: 0.85em;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: var(--blue);
+        margin-bottom: 10px;
+      }
+
+      .location-input-group {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+
+      .location-input {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .location-input .dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+
+      .location-input .dot.start {
+        background: var(--blue);
+      }
+      .location-input .dot.end {
+        background: var(--red);
+      }
+
+      .location-input .input-wrap {
+        flex: 1;
+        position: relative;
+      }
+
+      .location-input input[type="text"] {
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: var(--white);
+        color: var(--text);
+        font-size: 0.85em;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      .location-input input[type="text"]:focus {
+        border-color: var(--blue);
+      }
+      .location-input input[type="text"].resolved {
+        border-color: var(--blue);
+        background: var(--blue-light);
+      }
+
+      .autocomplete-list {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: var(--white);
+        border: 1px solid var(--border);
+        border-top: none;
+        border-radius: 0 0 6px 6px;
+        max-height: 180px;
+        overflow-y: auto;
+        z-index: 1000;
+        display: none;
+      }
+
+      .autocomplete-list.open {
+        display: block;
+      }
+
+      .autocomplete-item {
+        padding: 8px 10px;
+        font-size: 0.8em;
+        color: var(--text);
+        cursor: pointer;
+        border-bottom: 1px solid var(--border-light);
+      }
+      .autocomplete-item:hover {
+        background: var(--blue-light);
+        color: var(--text);
+      }
+      .autocomplete-item:last-child {
+        border-bottom: none;
+      }
+
+      .via-section h3 {
+        font-size: 0.75em;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: var(--text-light);
+        margin-bottom: 6px;
+      }
+
+      .waypoints-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 6px;
+      }
+
+      .waypoint-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--white);
+        padding: 6px 10px;
+        border-radius: 6px;
+        font-size: 0.8em;
+        border: 1px solid var(--border-light);
+      }
+
+      .waypoint-item .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        background: var(--red);
+      }
+
+      .waypoint-item .coords {
+        flex: 1;
+        color: var(--text-light);
+      }
+
+      .waypoint-item button {
+        background: none;
+        border: none;
+        color: var(--border);
+        cursor: pointer;
+        font-size: 1.1em;
+        padding: 0 4px;
+      }
+      .waypoint-item button:hover {
+        color: var(--red);
+      }
+
+      .hint {
+        font-size: 0.8em;
+        color: var(--text-light);
+        font-style: italic;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 0.9em;
+      }
+
+      label span {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--text);
+      }
+
+      input[type="range"] {
+        width: 100%;
+        accent-color: var(--red);
+      }
+
+      .range-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .range-row .value {
+        font-size: 0.85em;
+        color: var(--red);
+        font-weight: bold;
+        min-width: 50px;
+        text-align: right;
+      }
+
+      select {
+        width: 100%;
+        padding: 8px;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: var(--white);
+        color: var(--text);
+        font-size: 0.9em;
+      }
+
+      .btn {
+        width: 100%;
+        padding: 12px;
+        border: none;
+        border-radius: 8px;
+        font-size: 1em;
+        font-weight: bold;
+        cursor: pointer;
+        transition: opacity 0.2s;
+      }
+      .btn:hover {
+        opacity: 0.85;
+      }
+      .btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+
+      .btn-primary {
+        background: var(--red);
+        color: var(--white);
+      }
+      .btn-secondary {
+        background: var(--blue-light);
+        color: var(--text);
+        border: 1px solid var(--border);
+      }
+
+      .btn-row {
+        display: flex;
+        gap: 8px;
+      }
+      .btn-row .btn {
+        flex: 1;
+      }
+
+      #route-info {
+        display: none;
+      }
+
+      #route-info .stat {
+        display: flex;
+        justify-content: space-between;
+        padding: 6px 0;
+        border-bottom: 1px solid var(--border-light);
+        font-size: 0.9em;
+      }
+
+      #route-info .stat:last-child {
+        border-bottom: none;
+      }
+      #route-info .stat .label {
+        color: var(--text-light);
+      }
+      #route-info .stat .val {
+        color: var(--blue);
+        font-weight: bold;
+      }
+
+      #error-msg {
+        display: none;
+        background: var(--red-light);
+        color: var(--red);
+        padding: 10px;
+        border-radius: 6px;
+        font-size: 0.85em;
+      }
+
+      #map {
+        flex: 1;
+      }
+
+      .leaflet-popup-content {
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="sidebar">
+      <h1>Route Planner</h1>
+
+      <div class="section">
+        <h2>Route</h2>
+        <div class="location-input-group">
+          <div class="location-input">
+            <span class="dot start"></span>
+            <div class="input-wrap">
+              <input
+                type="text"
+                id="input-start"
+                placeholder="Start location..."
+                autocomplete="off"
+              />
+              <div class="autocomplete-list" id="ac-start"></div>
+            </div>
+          </div>
+          <div class="location-input">
+            <span class="dot end"></span>
+            <div class="input-wrap">
+              <input
+                type="text"
+                id="input-end"
+                placeholder="End location..."
+                autocomplete="off"
+              />
+              <div class="autocomplete-list" id="ac-end"></div>
+            </div>
+          </div>
+        </div>
+        <div class="via-section">
+          <h3>Via points</h3>
+          <div id="waypoints-list" class="waypoints-list"></div>
+          <p class="hint">Click the map to add via points</p>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Route Options</h2>
+
+        <label>
+          <span>Max Road Speed</span>
+          <div class="range-row">
+            <input
+              type="range"
+              id="top-speed"
+              min="20"
+              max="140"
+              step="10"
+              value="60"
+            />
+            <span class="value" id="top-speed-val">60 km/h</span>
+          </div>
+        </label>
+
+        <label>
+          <span>Highway Usage</span>
+          <div class="range-row">
+            <input
+              type="range"
+              id="use-highways"
+              min="0"
+              max="1"
+              step="0.1"
+              value="0"
+            />
+            <span class="value" id="use-highways-val">Avoid</span>
+          </div>
+        </label>
+
+        <label>
+          <span>Toll Road Usage</span>
+          <div class="range-row">
+            <input
+              type="range"
+              id="use-tolls"
+              min="0"
+              max="1"
+              step="0.1"
+              value="0.5"
+            />
+            <span class="value" id="use-tolls-val">0.5</span>
+          </div>
+        </label>
+
+        <label>
+          <span>Prefer Trails / Unpaved</span>
+          <div class="range-row">
+            <input
+              type="range"
+              id="use-trails"
+              min="0"
+              max="1"
+              step="0.1"
+              value="0"
+            />
+            <span class="value" id="use-trails-val">0.0</span>
+          </div>
+        </label>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btn-route" disabled>
+          Plan Route
+        </button>
+        <button class="btn btn-secondary" id="btn-clear">Clear</button>
+      </div>
+
+      <div id="error-msg"></div>
+
+      <div class="section" id="route-info">
+        <h2>Route Summary</h2>
+        <div class="stat">
+          <span class="label">Distance</span
+          ><span class="val" id="info-distance"></span>
+        </div>
+        <div class="stat">
+          <span class="label">Est. Time</span
+          ><span class="val" id="info-time"></span>
+        </div>
+      </div>
+
+      <div
+        style="
+          margin-top: auto;
+          font-size: 0.75em;
+          color: #b0bec5;
+          text-align: center;
+        "
+      >
+        Routing by Valhalla &middot; Maps by OpenStreetMap
+      </div>
+    </div>
+
+    <div id="map"></div>
+
+    <script>
+      // --- Map setup ---
+      const map = L.map("map").setView([-37.81, 144.96], 12);
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap contributors",
+        maxZoom: 19,
+      }).addTo(map);
+
+      map.locate({ setView: true, maxZoom: 12 });
+
+      // --- State ---
+      let startPoint = null; // { latlng, name }
+      let endPoint = null;
+      let viaPoints = []; // [latlng, ...]
+      let startMarker = null;
+      let endMarker = null;
+      let viaMarkers = [];
+      let routeLine = null;
+
+      // --- LocalStorage persistence ---
+      function saveState() {
+        const state = {
+          start: startPoint
+            ? {
+                lat: startPoint.latlng.lat,
+                lng: startPoint.latlng.lng,
+                name: startPoint.name,
+              }
+            : null,
+          end: endPoint
+            ? {
+                lat: endPoint.latlng.lat,
+                lng: endPoint.latlng.lng,
+                name: endPoint.name,
+              }
+            : null,
+          via: viaPoints.map((p) => ({ lat: p.lat, lng: p.lng })),
+          options: {
+            topSpeed: topSpeedSlider.value,
+            useHighways: useHighwaysSlider.value,
+            useTolls: useTollsSlider.value,
+            useTrails: useTrailsSlider.value,
+          },
+        };
+        localStorage.setItem("motomap-state", JSON.stringify(state));
+      }
+
+      function restoreState() {
+        const raw = localStorage.getItem("motomap-state");
+        if (!raw) return;
+        try {
+          const state = JSON.parse(raw);
+
+          // Restore options first (sliders)
+          if (state.options) {
+            topSpeedSlider.value = state.options.topSpeed;
+            topSpeedVal.textContent = state.options.topSpeed + " km/h";
+            useHighwaysSlider.value = state.options.useHighways;
+            useHighwaysVal.textContent = highwayLabel(
+              parseFloat(state.options.useHighways),
+            );
+            useTollsSlider.value = state.options.useTolls;
+            useTollsVal.textContent = parseFloat(
+              state.options.useTolls,
+            ).toFixed(1);
+            useTrailsSlider.value = state.options.useTrails;
+            useTrailsVal.textContent = parseFloat(
+              state.options.useTrails,
+            ).toFixed(1);
+          }
+
+          // Restore start
+          if (state.start) {
+            const latlng = L.latLng(state.start.lat, state.start.lng);
+            inputStart.value = state.start.name;
+            inputStart.classList.add("resolved");
+            setStartPoint(latlng, state.start.name);
+          }
+
+          // Restore end
+          if (state.end) {
+            const latlng = L.latLng(state.end.lat, state.end.lng);
+            inputEnd.value = state.end.name;
+            inputEnd.classList.add("resolved");
+            setEndPoint(latlng, state.end.name);
+          }
+
+          // Restore via points
+          if (state.via && state.via.length > 0) {
+            state.via.forEach((p) => addViaPoint(L.latLng(p.lat, p.lng)));
+          }
+
+          // Restore saved route line
+          const savedRoute = localStorage.getItem("motomap-route");
+          if (savedRoute) {
+            try {
+              const r = JSON.parse(savedRoute);
+              routeLine = L.polyline(r.points, {
+                color: "#CC1B2B",
+                weight: 5,
+                opacity: 0.85,
+              }).addTo(map);
+              document.getElementById("info-distance").textContent =
+                r.distanceKm + " km";
+              document.getElementById("info-time").textContent = formatTime(
+                r.timeSec,
+              );
+              routeInfo.style.display = "block";
+              map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
+            } catch (e) {
+              // ignore
+            }
+          } else {
+            // Fit map to show all points
+            const allPts = [
+              ...(state.start
+                ? [L.latLng(state.start.lat, state.start.lng)]
+                : []),
+              ...(state.end ? [L.latLng(state.end.lat, state.end.lng)] : []),
+              ...(state.via || []).map((p) => L.latLng(p.lat, p.lng)),
+            ];
+            if (allPts.length >= 2) {
+              map.fitBounds(L.latLngBounds(allPts), { padding: [40, 40] });
+            } else if (allPts.length === 1) {
+              map.setView(allPts[0], 12);
+            }
+          }
+        } catch (e) {
+          // Corrupt state, ignore
+        }
+      }
+
+      const VALHALLA_URL = "https://valhalla1.openstreetmap.de/route";
+      const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
+
+      // --- DOM refs ---
+      const inputStart = document.getElementById("input-start");
+      const inputEnd = document.getElementById("input-end");
+      const acStart = document.getElementById("ac-start");
+      const acEnd = document.getElementById("ac-end");
+      const viaList = document.getElementById("waypoints-list");
+      const btnRoute = document.getElementById("btn-route");
+      const btnClear = document.getElementById("btn-clear");
+      const routeInfo = document.getElementById("route-info");
+      const errorMsg = document.getElementById("error-msg");
+
+      const topSpeedSlider = document.getElementById("top-speed");
+      const topSpeedVal = document.getElementById("top-speed-val");
+      const useHighwaysSlider = document.getElementById("use-highways");
+      const useHighwaysVal = document.getElementById("use-highways-val");
+      const useTollsSlider = document.getElementById("use-tolls");
+      const useTollsVal = document.getElementById("use-tolls-val");
+      const useTrailsSlider = document.getElementById("use-trails");
+      const useTrailsVal = document.getElementById("use-trails-val");
+
+      // --- Slider labels ---
+      function highwayLabel(v) {
+        if (v <= 0.2) return "Avoid";
+        if (v <= 0.5) return "Some";
+        if (v <= 0.8) return "Prefer";
+        return "Max";
+      }
+
+      topSpeedSlider.oninput = () => {
+        topSpeedVal.textContent = topSpeedSlider.value + " km/h";
+        saveState();
+      };
+      useHighwaysSlider.oninput = () => {
+        useHighwaysVal.textContent = highwayLabel(
+          parseFloat(useHighwaysSlider.value),
+        );
+        saveState();
+      };
+      useTollsSlider.oninput = () => {
+        useTollsVal.textContent = parseFloat(useTollsSlider.value).toFixed(1);
+        saveState();
+      };
+      useTrailsSlider.oninput = () => {
+        useTrailsVal.textContent = parseFloat(useTrailsSlider.value).toFixed(1);
+        saveState();
+      };
+
+      // --- Marker icons ---
+      function makeIcon(color) {
+        return L.divIcon({
+          className: "",
+          html: `<div style="
+          width: 28px; height: 28px; border-radius: 50%;
+          background: ${color}; border: 3px solid white;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+        "></div>`,
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
+        });
+      }
+
+      const icons = {
+        start: makeIcon("#5BA4CF"),
+        via: makeIcon("#CC1B2B"),
+        end: makeIcon("#CC1B2B"),
+      };
+
+      // --- Geocoding / Autocomplete ---
+      let acDebounce = null;
+
+      function setupAutocomplete(input, dropdown, onSelect) {
+        input.addEventListener("input", () => {
+          clearTimeout(acDebounce);
+          const q = input.value.trim();
+          if (q.length < 3) {
+            dropdown.classList.remove("open");
+            return;
+          }
+
+          acDebounce = setTimeout(async () => {
+            try {
+              // Bias results toward current map view
+              const bounds = map.getBounds();
+              const params = new URLSearchParams({
+                q,
+                format: "json",
+                limit: "5",
+                viewbox: `${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()},${bounds.getSouth()}`,
+                bounded: "0",
+              });
+              const resp = await fetch(`${NOMINATIM_URL}?${params}`, {
+                headers: { Accept: "application/json" },
+              });
+              const results = await resp.json();
+              dropdown.innerHTML = "";
+              if (results.length === 0) {
+                dropdown.classList.remove("open");
+                return;
+              }
+
+              results.forEach((r) => {
+                const div = document.createElement("div");
+                div.className = "autocomplete-item";
+                div.textContent = r.display_name;
+                div.addEventListener("click", () => {
+                  const latlng = L.latLng(parseFloat(r.lat), parseFloat(r.lon));
+                  // Use a short name: first 2-3 parts of the display name
+                  const shortName = r.display_name
+                    .split(",")
+                    .slice(0, 3)
+                    .join(",")
+                    .trim();
+                  input.value = shortName;
+                  input.classList.add("resolved");
+                  dropdown.classList.remove("open");
+                  onSelect(latlng, shortName);
+                });
+                dropdown.appendChild(div);
+              });
+              dropdown.classList.add("open");
+            } catch (e) {
+              dropdown.classList.remove("open");
+            }
+          }, 300);
+        });
+
+        // When user edits a resolved input, mark it unresolved
+        input.addEventListener("keydown", () => {
+          input.classList.remove("resolved");
+        });
+
+        // Close dropdown when clicking elsewhere
+        document.addEventListener("click", (e) => {
+          if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.classList.remove("open");
+          }
+        });
+      }
+
+      function setStartPoint(latlng, name) {
+        startPoint = { latlng, name };
+        if (startMarker) map.removeLayer(startMarker);
+        startMarker = L.marker(latlng, {
+          icon: icons.start,
+          draggable: true,
+        }).addTo(map);
+        startMarker.bindPopup("Start: " + name);
+        startMarker.on("dragend", () => {
+          startPoint.latlng = startMarker.getLatLng();
+          const ll = startPoint.latlng;
+          startPoint.name = `${ll.lat.toFixed(4)}, ${ll.lng.toFixed(4)}`;
+          inputStart.value = startPoint.name;
+          inputStart.classList.add("resolved");
+          saveState();
+        });
+        updateRouteButton();
+        saveState();
+      }
+
+      function setEndPoint(latlng, name) {
+        endPoint = { latlng, name };
+        if (endMarker) map.removeLayer(endMarker);
+        endMarker = L.marker(latlng, {
+          icon: icons.end,
+          draggable: true,
+        }).addTo(map);
+        endMarker.bindPopup("End: " + name);
+        endMarker.on("dragend", () => {
+          endPoint.latlng = endMarker.getLatLng();
+          const ll = endPoint.latlng;
+          endPoint.name = `${ll.lat.toFixed(4)}, ${ll.lng.toFixed(4)}`;
+          inputEnd.value = endPoint.name;
+          inputEnd.classList.add("resolved");
+          saveState();
+        });
+        updateRouteButton();
+        saveState();
+      }
+
+      setupAutocomplete(inputStart, acStart, setStartPoint);
+      setupAutocomplete(inputEnd, acEnd, setEndPoint);
+
+      // --- Via point management ---
+      function renderViaPoints() {
+        viaList.innerHTML = "";
+        viaPoints.forEach((wp, i) => {
+          const div = document.createElement("div");
+          div.className = "waypoint-item";
+          div.innerHTML = `
+          <span class="dot"></span>
+          <span class="coords">${wp.lat.toFixed(4)}, ${wp.lng.toFixed(4)}</span>
+          <button onclick="removeViaPoint(${i})" title="Remove">&times;</button>
+        `;
+          viaList.appendChild(div);
+        });
+      }
+
+      function addViaPoint(latlng) {
+        viaPoints.push(latlng);
+        const marker = L.marker(latlng, {
+          icon: icons.via,
+          draggable: true,
+        }).addTo(map);
+        const idx = viaMarkers.length;
+        marker.on("dragend", () => {
+          viaPoints[idx] = marker.getLatLng();
+          renderViaPoints();
+        });
+        viaMarkers.push(marker);
+        renderViaPoints();
+        saveState();
+      }
+
+      window.removeViaPoint = function (index) {
+        map.removeLayer(viaMarkers[index]);
+        viaPoints.splice(index, 1);
+        viaMarkers.splice(index, 1);
+        // Rebind drag handlers
+        viaMarkers.forEach((m, i) => {
+          m.off("dragend");
+          m.on("dragend", () => {
+            viaPoints[i] = m.getLatLng();
+            renderViaPoints();
+            saveState();
+          });
+        });
+        renderViaPoints();
+        saveState();
+      };
+
+      // --- Map click: add via points (start/end are set via text inputs) ---
+      map.on("click", (e) => {
+        // If start isn't set, set it from click
+        if (!startPoint) {
+          const name = `${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`;
+          inputStart.value = name;
+          inputStart.classList.add("resolved");
+          setStartPoint(e.latlng, name);
+        }
+        // If end isn't set, set it from click
+        else if (!endPoint) {
+          const name = `${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`;
+          inputEnd.value = name;
+          inputEnd.classList.add("resolved");
+          setEndPoint(e.latlng, name);
+        }
+        // Otherwise add as via point
+        else {
+          addViaPoint(e.latlng);
+        }
+      });
+
+      function updateRouteButton() {
+        btnRoute.disabled = !(startPoint && endPoint);
+      }
+
+      // --- Routing ---
+      btnRoute.addEventListener("click", async () => {
+        if (!startPoint || !endPoint) return;
+
+        btnRoute.disabled = true;
+        btnRoute.textContent = "Planning...";
+        errorMsg.style.display = "none";
+        routeInfo.style.display = "none";
+
+        if (routeLine) {
+          map.removeLayer(routeLine);
+          routeLine = null;
+        }
+
+        // Build locations: start -> via points -> end
+        const locations = [
+          { lat: startPoint.latlng.lat, lon: startPoint.latlng.lng },
+          ...viaPoints.map((wp) => ({ lat: wp.lat, lon: wp.lng })),
+          { lat: endPoint.latlng.lat, lon: endPoint.latlng.lng },
+        ];
+
+        const body = {
+          locations,
+          costing: "motorcycle",
+          costing_options: {
+            motorcycle: {
+              top_speed: parseInt(topSpeedSlider.value),
+              use_highways: parseFloat(useHighwaysSlider.value),
+              use_tolls: parseFloat(useTollsSlider.value),
+              use_trails: parseFloat(useTrailsSlider.value),
+            },
+          },
+          units: "kilometers",
+        };
+
+        try {
+          const resp = await fetch(VALHALLA_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+
+          if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(
+              err.error || err.status_message || `HTTP ${resp.status}`,
+            );
+          }
+
+          const data = await resp.json();
+          const trip = data.trip;
+
+          // Decode all leg shapes
+          const allPoints = [];
+          trip.legs.forEach((leg) => {
+            allPoints.push(...decodePolyline(leg.shape));
+          });
+
+          routeLine = L.polyline(allPoints, {
+            color: "#CC1B2B",
+            weight: 5,
+            opacity: 0.85,
+          }).addTo(map);
+
+          map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
+
+          const distanceKm = trip.summary.length.toFixed(1);
+          const timeSec = trip.summary.time;
+          document.getElementById("info-distance").textContent =
+            distanceKm + " km";
+          document.getElementById("info-time").textContent =
+            formatTime(timeSec);
+          routeInfo.style.display = "block";
+
+          // Persist route shape and summary
+          localStorage.setItem(
+            "motomap-route",
+            JSON.stringify({
+              points: allPoints,
+              distanceKm,
+              timeSec,
+            }),
+          );
+        } catch (err) {
+          errorMsg.textContent = "Routing error: " + err.message;
+          errorMsg.style.display = "block";
+        } finally {
+          btnRoute.disabled = false;
+          btnRoute.textContent = "Plan Route";
+        }
+      });
+
+      // --- Clear ---
+      btnClear.addEventListener("click", () => {
+        startPoint = null;
+        endPoint = null;
+        viaPoints = [];
+        if (startMarker) {
+          map.removeLayer(startMarker);
+          startMarker = null;
+        }
+        if (endMarker) {
+          map.removeLayer(endMarker);
+          endMarker = null;
+        }
+        viaMarkers.forEach((m) => map.removeLayer(m));
+        viaMarkers = [];
+        if (routeLine) {
+          map.removeLayer(routeLine);
+          routeLine = null;
+        }
+        inputStart.value = "";
+        inputEnd.value = "";
+        inputStart.classList.remove("resolved");
+        inputEnd.classList.remove("resolved");
+        routeInfo.style.display = "none";
+        errorMsg.style.display = "none";
+        localStorage.removeItem("motomap-route");
+        renderViaPoints();
+        updateRouteButton();
+        saveState();
+      });
+
+      // --- Helpers ---
+      function decodePolyline(encoded) {
+        const points = [];
+        let index = 0,
+          lat = 0,
+          lng = 0;
+        while (index < encoded.length) {
+          let b,
+            shift = 0,
+            result = 0;
+          do {
+            b = encoded.charCodeAt(index++) - 63;
+            result |= (b & 0x1f) << shift;
+            shift += 5;
+          } while (b >= 0x20);
+          lat += result & 1 ? ~(result >> 1) : result >> 1;
+          shift = 0;
+          result = 0;
+          do {
+            b = encoded.charCodeAt(index++) - 63;
+            result |= (b & 0x1f) << shift;
+            shift += 5;
+          } while (b >= 0x20);
+          lng += result & 1 ? ~(result >> 1) : result >> 1;
+          points.push([lat / 1e6, lng / 1e6]);
+        }
+        return points;
+      }
+
+      function formatTime(seconds) {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        if (h > 0) return `${h}h ${m}m`;
+        return `${m} min`;
+      }
+
+      // --- Restore saved state on load ---
+      restoreState();
+    </script>
+  </body>
+</html>
