@@ -71,7 +71,7 @@ Process list:
 17
 ...
 </code></pre>
-<p>So plain processes fall short on all four goals: they share the host's filesystem, network stack, and process tree, breaking <strong>isolation,</strong> they have no built-in limits on CPU or memory usage, breaking <strong>resource control,</strong> and they depend on whatever libraries and dependencies happen to be installed on the host, breaking <strong>portability</strong>. Let’s next take a closer look at how Docker’s container implementation solves these issues.</p>
+<p>So plain processes fall short on all three container requirements: they share the host's filesystem, network stack, and process tree, breaking <strong>isolation,</strong> they have no built-in limits on CPU or memory usage, breaking <strong>resource control,</strong> and they depend on whatever libraries and dependencies happen to be installed on the host, breaking <strong>portability</strong>. Let’s next take a closer look at how Docker’s container implementation solves these issues.</p>
 <h3>1. Isolation - Namespaces</h3>
 <p>It turns out that there exists a neat feature in the Linux kernel called <strong>namespaces</strong> that partition kernel resources. A namespace defines what kernel resources can be viewed, and a process that uses the namespace can only see these resources. Isolation can be securely implemented using namespaces because the OS kernel controls what kernel-level operations all processes can perform.</p>
 <p>There are many different types of namespaces, some types that are of interest to containers are:</p>
