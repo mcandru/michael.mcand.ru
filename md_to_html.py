@@ -1,3 +1,11 @@
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#     "markdown>=3.10.2",
+#     "pyyaml>=6.0.3",
+# ]
+# ///
+
 import os
 import re
 from pathlib import Path
