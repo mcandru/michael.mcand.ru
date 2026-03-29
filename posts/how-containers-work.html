@@ -5,19 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Michael McAndrew | How Containers Actually Work</title>
     <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="../lib/highlight-github.min.css">
 </head>
 <body>
     <h1><a href="../">Michael McAndrew</a></h1>
     <date>2026-03-28</date>
     <h2>How Containers Actually Work</h2>
-    <p>A common explanation of a container is that it’s basically a lightweight virtual machine. This is certainly a reasonable starting point, but for me it raises a question: lightweight <em>how exactly</em>? What has been removed from a VM and what has been kept? And what does a container actually look like from the operating system’s perspective? I’m going to give a go to spelling out a little more about how containers actually work under the hood.</p>
-<p><strong>Disclaimer: this post won’t teach you how to use Docker. This is not a Docker how-to guide.</strong></p>
+    <p>A common explanation of a container is that it is basically a lightweight virtual machine. This is a reasonable starting point, but it raises a question for me: lightweight <em>how exactly</em>? What has been removed from a VM, and what has been kept? What does a container actually look like from the operating system’s perspective? I am going to try to spell out a little more about how containers work under the hood.</p>
+<p><strong>Disclaimer: this post will not teach you how to use Docker. This is not a Docker how-to guide.</strong></p>
 <p><img src="/img/how-containers-work/vm-vs-container.png" style="width: 100%" /></p>
 <p><em>At a high level, a container will always run on the host OS whereas a VM virtualises at the hardware level.</em></p>
-<h2>Containers Are Just Processes</h2>
-<p>From the operating system perspective, containers are just processes. In OS terms, a <strong>program</strong> is a static executable file stored on disk that contains instructions for a computer to perform tasks, and a <strong>process</strong> is an executing instance of a program.</p>
-<p>A process includes the program code, and data. The host OS is responsible for scheduling processes to be run on the CPU.</p>
-<p>Let’s take a look at a simple example. Let’s try to run an NGINX web server container with Docker:</p>
+<h2>Containers are just processes</h2>
+<p>From the operating system’s perspective, containers are just processes. In OS terms, a <strong>program</strong> is a static executable file stored on disk that contains instructions for a computer to perform tasks, and a <strong>process</strong> is a running instance of a program.</p>
+<p>A process includes program code and data. The host OS is responsible for scheduling processes on the CPU.</p>
+<p>Let’s look at a simple example. Let’s run an NGINX web server container with Docker:</p>
 <pre><code class="language-bash">~$ docker run -d --name web-server nginx
 </code></pre>
 <p>We can use the <code>docker top</code> command to get a list of the running processes for that container:</p>
@@ -26,20 +27,20 @@ UID                 PID                 PPID                C                   
 root                200800              200776              0                   11:32               ?                   00:00:00            nginx: master process nginx -g daemon off;
 message+            200841              200800              0                   11:32               ?                   00:00:00            nginx: worker process
 </code></pre>
-<p>In this case, starting the NGINX container created two processes, a master process for the web server and a worker process that can be used to handle requests. We can also validate that these are just regular old processes running on the system with <code>ps</code> to list the running processes:</p>
+<p>In this case, starting the NGINX container created two processes: a master process for the web server and a worker process that can handle requests. We can also verify that these are just regular processes running on the system by using <code>ps</code> to list running processes:</p>
 <pre><code class="language-bash">~$ ps aux | grep nginx
 root      200800  0.0  1.9  14860  8916 ?        Ss   11:32   0:00 nginx: master process nginx -g daemon off;
 message+  200841  0.0  0.7  15316  3704 ?        S    11:32   0:00 nginx: worker process
 </code></pre>
-<h2>Containers Are Isolated Processes</h2>
-<p>Containers have three main requirements worth mentioning:</p>
+<h2>Containers are isolated processes</h2>
+<p>Containers have three main requirements:</p>
 <ol>
-<li><strong>Isolation</strong> - containers should run in a sandboxed environment with its own filesystem, processes, and networking, and mitigate any risks of an application interfering with the rest of the OS.</li>
-<li><strong>Resource Control</strong> - the container should be limited in how much CPU, memory, and I/O it can consume, preventing any single container from starving others sharing the same host.</li>
-<li><strong>Portability</strong> - containers should be able to package everything needed to run an application, including all of its dependencies, into a single snapshot of files and directories that can be run on nearly any system</li>
+<li><strong>Isolation</strong> - containers should run in a sandboxed environment with their own filesystem, processes, and networking. They should also reduce the risk of an application interfering with the rest of the OS.</li>
+<li><strong>Resource Control</strong> - the container should be limited in how much CPU, memory, and I/O it can consume. This prevents any single container from starving others on the same host.</li>
+<li><strong>Portability</strong> - containers should package everything needed to run an application, including all of its dependencies, into a single snapshot of files and directories that can run on nearly any system.</li>
 </ol>
-<p>By default on Linux, processes are somewhat isolated. A process cannot access the memory space of any other process running on the OS. This is important to prevent running processes from causing other processes to crash, and to ensure that a malicious process can’t steal sensitive data from its contemporaries.</p>
-<p>However, processes still have a view of the system that they are running on. They can see the full filesystem, they can see metadata about each other, and they share the same network stack.</p>
+<p>By default on Linux, processes are somewhat isolated. A process cannot access the memory space of any other process running on the OS. This helps prevent one process from crashing another and reduces the risk of a malicious process stealing sensitive data from its peers.</p>
+<p>However, processes still have a broad view of the system they are running on. They can see the full filesystem, view metadata about each other, and share the same network stack.</p>
 <p>For example, the following Python program prints all files in the current working directory and lists the PIDs of all active processes on the OS:</p>
 <pre><code class="language-python"># /// script
 # requires-python = &quot;&gt;=3.14&quot;
@@ -71,21 +72,21 @@ Process list:
 17
 ...
 </code></pre>
-<p>So plain processes fall short on all three container requirements: they share the host's filesystem, network stack, and process tree, breaking <strong>isolation,</strong> they have no built-in limits on CPU or memory usage, breaking <strong>resource control,</strong> and they depend on whatever libraries and dependencies happen to be installed on the host, breaking <strong>portability</strong>. Let’s next take a closer look at how Docker’s container implementation solves these issues.</p>
+<p>So plain processes fall short on all three container requirements. They share the host’s filesystem, network stack, and process tree, breaking <strong>isolation.</strong> They have no built-in limits on CPU or memory usage, breaking <strong>resource control.</strong> And they depend on whatever libraries and dependencies happen to be installed on the host, breaking <strong>portability.</strong> Let’s take a closer look at how Docker’s container implementation solves these issues.</p>
 <h3>1. Isolation - Namespaces</h3>
-<p>It turns out that there exists a neat feature in the Linux kernel called <strong>namespaces</strong> that partition kernel resources. A namespace defines what kernel resources can be viewed, and a process that uses the namespace can only see these resources. Isolation can be securely implemented using namespaces because the OS kernel controls what kernel-level operations all processes can perform.</p>
-<p>There are many different types of namespaces, some types that are of interest to containers are:</p>
+<p>Linux has a neat kernel feature called <strong>namespaces</strong> that partitions kernel resources. A namespace defines which resources are visible, and a process in that namespace can only see those resources. Namespaces are a solid foundation for isolation because the kernel controls which privileged operations processes can perform.</p>
+<p>There are many different types of namespaces. Some that are especially relevant to containers are:</p>
 <ul>
 <li><strong>PID namespace:</strong> the process gets its own process tree. It can only see processes in its own namespace. Its first process becomes PID 1.</li>
-<li><strong>Network namespace:</strong> the process gets its own network stack, its own interfaces, its own routing table, its own ports</li>
-<li><strong>Mount namespace:</strong> the process gets its own view of the filesystem</li>
-<li><strong>UTS namespace:</strong> the process gets its own hostname</li>
-<li><strong>Inter-process Communication (IPC) namespace:</strong> the process gets its own inter-process communication resources, such as message queues, semaphores, and shared memory segments. Processes in different IPC namespaces cannot communicate through these mechanisms</li>
-<li><strong>User namespace:</strong> the process gets its own mapping of user and group IDs. This means that a process can appear to run as root (UID 0) inside the namespace while mapping to an unprivileged user on the host which is useful for security</li>
+<li><strong>Network namespace:</strong> the process gets its own network stack, its own interfaces, its own routing table, and its own ports.</li>
+<li><strong>Mount namespace:</strong> the process gets its own view of the filesystem.</li>
+<li><strong>UTS namespace:</strong> the process gets its own hostname.</li>
+<li><strong>Inter-process Communication (IPC) namespace:</strong> the process gets its own inter-process communication resources, such as message queues, semaphores, and shared memory segments. Processes in different IPC namespaces cannot communicate through these mechanisms.</li>
+<li><strong>User namespace:</strong> the process gets its own mapping of user and group IDs. This means that a process can appear to run as root (UID 0) inside the namespace while mapping to an unprivileged user on the host, which is useful for security.</li>
 </ul>
 <p><img src="/img/how-containers-work/namespace-isolation.png" style="width: 100%" /></p>
-<p>By default, every Linux system has one namespace for each type and every forked process uses the namespace of their parent, and by default processes are created with the default namespace. However, you can create namespaces to control resource access for each. When Docker creates a new container, it typically creates a new namespace of each type specifically for all container processes in order to achieve the level of observed process isolation.</p>
-<p>To show that container processes achieve this level of isolation, let’s <em>dockerise</em> the Python <code>process.py</code> example from earlier:</p>
+<p>By default, a Linux system has one namespace of each type, and processes inherit their parent’s namespaces. Docker typically creates a new namespace of each type for a container so that all container processes share the same isolated view.</p>
+<p>To show what this looks like in practice, let’s <em>dockerise</em> the Python <code>process.py</code> example from earlier:</p>
 <pre><code class="language-docker">FROM python:3.12-slim
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
@@ -105,10 +106,10 @@ Process list:
 1
 33
 </code></pre>
-<p>You will notice that the files in the file system are completely different from when we run the script natively. There are also a much smaller number of process PIDs printed. The container process doesn’t have the same view of the filesystem and processes because it is running in a constrained mount and PID namespace.</p>
+<p>You will notice that the files in the filesystem are completely different from when we run the script natively. You will also see far fewer process PIDs. The container process has a different view of the filesystem and processes because it is running in constrained mount and PID namespaces.</p>
 <h3>2. Resource Control - Cgroups</h3>
-<p>One important component of containers is the ability to isolate the usage of resources like the CPU, memory, and disk I/O. This can be useful to prevent a container from hogging all of the resources on a machine.</p>
-<p>To implement this functionality, Docker leans on another Linux kernel feature called <strong>cgroups</strong>. Google developed cgroups in the early 2000’s to manage their massive internal infrastructure management system, Borg, to be able for different applications to share the same hardware efficiently without interfering with each other. It added the ability to control resource usage by a process by creating a group that defined the usage constraints of all processes in the group. Processes could then join the group and the kernel would enforce these constraints.</p>
+<p>One important component of containers is the ability to isolate the use of resources, such as CPU, memory, and disk I/O. This is useful for preventing a single container from consuming all of the resources on a machine.</p>
+<p>To implement this functionality, Docker leans on another Linux kernel feature called cgroups. Google developed cgroups in the early 2000's for their massive internal infrastructure management system, Borg, to enable different applications to share the same hardware efficiently without interfering with each other. Cgroups provide the ability to control process resource usage by defining a group with resource constraints that apply to all processes within it. Processes can then join the group, and the kernel enforces these constraints.</p>
 <p>When you run a docker command like:</p>
 <pre><code class="language-python">$ docker run --memory=512m --cpus=1 -d --name web-server nginx
 </code></pre>
@@ -129,24 +130,24 @@ cgroup.procs            cpu.stat                dev-hugepages.mount    io.pressu
 <pre><code class="language-bash">~$ cat /sys/fs/cgroup/system.slice/docker-2c53af8539092141978bb91a17fe06a2093e30ad32ba4930c4ccfd3bb7591423.scope/memory.max
 536870912
 </code></pre>
-<p>To understand a little bit more about <em>how</em> the OS limits resource usage, we have to understand a little bit about how processes use resources. When a process needs a resource, say memory as an example, it sends a syscall to the OS requesting memory. The kernel memory allocator then allocates the memory, and returns information about the resulting memory allocation back to the process. The kernel can check if a process belongs to a cgroup, and if so, checks whether the memory allocation would exceed any limits defined in the cgroup. I won’t go into the details of how cgroups limit other resources but you get the idea[1].</p>
+<p>To understand a little more about how the OS limits resource usage, we need to understand how processes use resources. When a process needs a resource, take memory as an example, it sends a syscall to the OS requesting memory. The kernel memory allocator then allocates the memory and returns information about the resulting allocation back to the process. The kernel can check if a process belongs to a cgroup, and if so, whether the allocation would exceed any limits defined in that cgroup. I won't go into the details of how cgroups limit other resources, but you get the idea[1].</p>
 <p><img src="/img/how-containers-work/cgroup-resource-limiting.png" style="width: 100%" /></p>
 <h3>3. Portability - Images</h3>
-<p>So if a container is simply a group of isolated processes running in an environment with their own cgroup, how is the portability goal of containers implemented? A large part of the usefulness of containers comes from the ability to package up entire applications and all of their resources into a single bundle that can be run anywhere.</p>
-<p>That’s where container images come in. A container image is a standard package that includes all of the files, binaries, libraries, and config required to run a container. When a container mount namespace is created and pointed to a directory on disk, everything in the image is copied into that directory. A container process can then access everything in the image.</p>
-<p>One thing that confused me when I started using Docker is that I can create a “Ubuntu” container and shell into it with a command like:</p>
+<p>So if a container is simply a group of isolated processes running in an environment with their own cgroup, how is the portability requirement of containers achieved? A large part of the usefulness of containers comes from the ability to package up an entire application and all of its dependencies into a single snapshot that can be run on any machine with a container runtime installed on it.</p>
+<p>That's where container images come in. A container image is a standard package that includes all of the files, binaries, libraries, and configuration required to run a container. When a container's mount namespace is created and pointed to a directory on disk, everything in the image is copied into that directory. The container process can then access everything in the image.</p>
+<p>One thing that confused me when I started using Docker is that I can create an "Ubuntu" container and shell into it with a command like:</p>
 <pre><code class="language-bash">~$ docker run -it ubuntu:latest bash
 root@c6cdec8d7646:/# ls
 bin  boot  dev  etc  home  lib  lib64  media  mnt  opt  proc  root  run  sbin  srv  sys  tmp  usr  var
 </code></pre>
-<p>I will get a shell with a directory structure that looks awfully like Ubuntu. I can even apt install and use packages, even if I’m not running Ubuntu as my host OS:</p>
+<p>The running shell has a directory structure that looks awfully similar to Ubuntu. I can even install and use packages with apt, even if I’m not running Ubuntu as my host OS:</p>
 <pre><code class="language-bash">root@c6cdec8d7646:/# apt install curl
 </code></pre>
-<p>So what’s happening here exactly? We fetched the official <a href="https://hub.docker.com/_/ubuntu">Ubuntu Docker image from DockerHub</a> and spun up a container to run it. But this isn’t the full Ubuntu OS, it’s just the root directory (<code>/</code>) of the OS, containing the filesystem, libraries and tools that Ubuntu ships with.</p>
+<p>So what's happening here exactly? We fetched the official Ubuntu Docker image from <a href="https://hub.docker.com/_/ubuntu">DockerHub</a> and spun up a container to run it. But this isn't the full Ubuntu OS, it's just the root directory (<code>/</code>) of the OS, containing the filesystem, libraries, and tools that Ubuntu ships with.</p>
 <p>This bundles in the <code>bash</code> program that allows us to shell into the container like we would on any OS, and the <code>apt</code> program that lets us install any executable from the apt repository. However, every executable in the Ubuntu image is run on the host OS, not on a Ubuntu kernel.</p>
-<p>So even though the running container from the Ubuntu image <em>feels</em> a lot like Ubuntu, it’s not quite. The reason why this is useful is so that we can bundle absolutely every possible dependency that we may need in the container. If the application needs to use some OS utilities, we need to bundle those into the container.</p>
+<p>So even though a running container from the Ubuntu image feels a lot like Ubuntu, it's not quite. The reason this is useful is that we can bundle absolutely every possible dependency we may need into the container. If the application needs to use some OS utilities, we can bundle those into the container as well.</p>
 <h4>Layers</h4>
-<p>But it’s quite rare that we wish to containerise just the Ubuntu user space. Typically, we will want to add files, config, and binaries that we need to actually run our application too. Docker allows us to define changes to an image using a <code>Dockerfile</code> :</p>
+<p>But it’s quite rare that we wish to containerise just the Ubuntu user space. Typically, we’ll want to add files, configuration, and binaries needed to actually run our application too. Docker allows us to define changes to an image using a <code>Dockerfile</code> :</p>
 <pre><code class="language-docker">FROM python:3.12-slim
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
@@ -155,31 +156,41 @@ COPY process.py /app/process.py
 WORKDIR /app
 CMD [&quot;uv&quot;, &quot;run&quot;, &quot;process.py&quot;]
 </code></pre>
-<p>The <code>FROM</code> command allows us to import some kind of a base image that has a bunch of files, and utilities that we might need already included. Every line in the <code>Dockerfile</code> is called a <strong>layer</strong>. Each layer can essentially be thought of as a set of file system changes that could add, remove, or modify files in the image. When you have defined a <code>Dockerfile</code>, the image has to be built from it. This is just the process of reading and executing each layer defined in the <code>Dockerfile</code> and saving the resulting snapshot.</p>
-<p>One very neat thing about this layered approach to building images is that, because they build on top of each other sequentially, they can be cached. If you make a change to a <code>Dockerfile</code>, you will only have to rebuild the image from the line that you changed and down, as the state of the image will be unchanged from before that point.</p>
+<p>The <code>FROM</code> command allows us to start from a base image that already includes a set of files and utilities we might need. Every line in a <code>Dockerfile</code> is called a layer. Each layer can essentially be thought of as a set of file system changes that add, remove, or modify files in the image. Once a a <code>Dockerfile</code> is defined, an image has to be built from it. This is simply the process of reading and executing each layer and saving the resulting snapshot.</p>
+<p>One very nice thing about this layered approach is that, because layers build on top of each other sequentially, they can be cached. If you make a change to a <code>Dockerfile</code>, you only need to rebuild from the changed line onwards, since the state of the image is unchanged up to that point.</p>
 <p><img src="/img/how-containers-work/image-layers.png" style="width: 100%" /></p>
+<p><em>If a change is made to the <code>process.py</code> file, only the layers from the COPY command and onwards must be rebuilt.</em></p>
 <h2>Creating an Isolated Process from Scratch</h2>
-<p>At this point we now know that containers are just processes that are magically isolated and resource controlled thanks to a few Linux OS features, and that we can bundle an image and copy it into the root directory of a process.</p>
-<p>We can now put all of this knowledge together to build a very basic container runtime. I have built a container runtime in ~300 lines of Python that I have called <code>pycrate</code>. You can clone the repo and try it for yourself here:</p>
+<p>At this point we know that containers are just processes, isolated and resource-controlled thanks to a few Linux OS features, and that we can bundle an image and copy it into the root directory of a process.</p>
+<p>We can now put all of this together to build our very own basic container runtime. I have built one in ~300 lines of Python that you can clone the repo and try it for yourself here:</p>
 <p><a href="https://github.com/mcandru/pycrate">https://github.com/mcandru/pycrate</a></p>
-<p>I built it in Python for educational purposes as Python is more widely readable than C. The implementation is also full of security holes but I think that it’s still useful to see the vibe of something that resembles a container runtime, and that it’s not just magic.</p>
+<p>I built it in Python for educational purposes, as Python is more widely readable than C. The implementation is full of security holes, but I think it's still useful to see the vibe of something that resembles a container runtime.</p>
 <p>You can run a “container” by running:</p>
 <pre><code class="language-bash">~$ sudo ./pycrate.py run ubuntu.tar.gz /bin/bash
 </code></pre>
-<p>and you will get a Ubuntu-like shell experience.</p>
+<p>and you will get a Ubuntu-like shell experience running in a pseudo-containerised process.</p>
 <p>At its core, the way it works is relatively straightforward:</p>
-<ol>
-<li><strong>Extract the image</strong> - for example if you specify <code>ubuntu.tar.gz</code>, we need to uncompress it and then copy it to a temporary directory that we’ll use as the root directory for the container</li>
-<li><strong>Set up cgroups</strong> - You can specify <code>--memory</code> and <code>--cpu</code> arguments to the command. If you do, we create a new directory in the <code>/sys/fs/cgroup</code> directory. This is a virtual filesystem in which the kernel will intercept the <code>mkdir</code> and automatically populate it with all of the control interface files needed for a cgroup. We then make changes to the <code>memory.max</code> and <code>cpu.max</code> files as needed to specify the limitations</li>
-<li><strong>Create namespaces</strong> - we create a new PID, mount, hostname, network, and IPC namespace to isolate the process. This will apply to the current process and any child processes that it creates</li>
-<li><strong>Fork the process</strong> - After creating the namespaces, we fork the process. Forking is a bit funky when you first see it, it is essentially creating an exact copy of a process from the current point of execution of the program code. The forked child is now the container.</li>
-<li><strong>Set up the filesystem</strong> - once we have forked the process, we need to set up the filesystem. By default, when we fork the process, we can still see the old <code>/proc</code> directory that contains file descriptors for all OS processes, but we shouldn’t be able to access them. We can remount the <code>/proc</code> directory to view the new PIDs only viewable by the child process. We also need to set the new root directory for the child process. In my example code we use <code>chroot</code>, but this has a pretty gnarly escape where you can get access to the real root folder of the system. This is because <code>chroot</code> only changes the current process’s notion of the root directory. You can simply <code>chroot</code> again to another relative path and break out. There are other ways to <strong>change the mount tree root directory itself</strong> but I chose not to use it for this example project to try to keep the code as simple and understandable as possible.</li>
-</ol>
+<p><img src="/img/how-containers-work/container-runtime.png" style="width: 100%" /></p>
+<p><strong>1. Extract the Image</strong></p>
+<p>For example, if you specify <code>ubuntu.tar.gz</code>, we uncompress it and copy it to a temporary directory that we'll use as the root directory for the container.</p>
+<p><strong>2. Set up Cgroups</strong></p>
+<p>You can specify <code>--memory</code> and <code>--cpu</code> arguments to the command. If you do, a new directory is created in <code>/sys/fs/cgroup</code> to create a new cgroup for the process.</p>
+<p>Why does simply creating a new empty directory create a new cgroup? This is a virtual filesystem that is backed by the kernel. The kernel will intercept the <code>mkdir</code> and automatically populate it with the control interface files needed for a cgroup. This allows us to then modify the <code>memory.max</code> and <code>cpu.max</code> files as needed to specify the resource limits.</p>
+<p><strong>3. Create Namespaces</strong></p>
+<p>A new PID, mount, hostname, network, and IPC namespace must be created to isolate the process. This will apply to the current process and any child processes that it creates.</p>
+<p><strong>4. Fork the Process</strong></p>
+<p>After creating the namespaces, the parent process must be forked to create the container process. Forking is a bit funky when you first encounter it. It essentially creates an exact copy of a process from the current point of execution. The forked child is now the container.</p>
+<p><strong>5. Set up the Filesystem</strong></p>
+<p>Once the process is forked, the filesystem must be set up. By default, the forked process can still see the old <code>/proc</code> directory containing the file descriptors for all OS processes, but it shouldn’t be able to access them. <code>/proc</code> must be remounted so that it only shows the PIDs visible to the child process.</p>
+<p>The root directory for the process must also be changed. In my implementation, I use the <code>chroot</code> syscall, mostly because there already exists a Python <code>os</code> module wrapper for it. This changes the root directory to that of the temporary directory that we created that contains the extracted system image.</p>
+<p>Note that <code>chroot</code> has a pretty gnarly escape where you can get access to the real root folder of the system simply by calling <code>chroot</code> again to another relative path and break out. There are other ways to change the mount tree’s root directory itself, but I chose not to use them for this example to keep the code as understandable as possible.</p>
 <p>And there we have it, a poor mans container runtime, complete with no network access, incomplete isolation, and at least one major security vulnerability. The concepts are simple, but the implementation is not so much. However, it was still a fun educational exercise, especially as someone who is not familiar with low-level kernel interfaces.</p>
 <h2>Conclusion</h2>
 <p>Containers aren't magic, although using them can make it feel like they are. They're processes with a few clever tricks added on: <strong>namespaces</strong> to limit what the process can see, <strong>cgroups</strong> to limit what it can consume, and <strong>images</strong> to bundle everything it needs into a portable snapshot.</p>
 <p>I hope this post demystifies the black box a little. The next time you run <code>docker run</code>, you'll know that somewhere under the hood, the kernel is creating some isolated processes, giving it a restricted view of its world, and pointing it at a directory full of files.</p>
 <h2>Footnotes</h2>
-<p>[1] You may at this point be thinking, if Docker containers rely on namespaces and cgroups in Linux to isolate processes, how do they work on macOS or Windows? Well the short answer is that they don’t. When you run Docker on Mac or Windows it actually runs in a lightweight, purpose-built Linux VM. In theory any performance hit from running containers in the VM should be minimal, but in practice it is relatively well accepted that running Docker on Linux has meaningful performance benefits.</p>
+<p><small>[1] You may at this point be thinking, if Docker containers rely on namespaces and cgroups in Linux to isolate processes, how do they work on macOS or Windows? Well the short answer is that they don’t. When you run Docker on Mac or Windows it actually runs in a lightweight, purpose-built Linux VM. In theory any performance hit from running containers in the VM should be minimal, but in practice it is relatively well accepted that running Docker on Linux has meaningful performance benefits.</small></p>
+<script src="../lib/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
 </body>
 </html>

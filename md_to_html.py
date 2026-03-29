@@ -76,12 +76,15 @@ def convert_markdown_to_html(markdown_file, output_dir=None):
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Michael McAndrew | {title}</title>
     <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="../lib/highlight-github.min.css">
 </head>
 <body>
     <h1><a href="../">Michael McAndrew</a></h1>
     {date_html}
     <h2>{title}</h2>
     {html_content}
+<script src="../lib/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
 </body>
 </html>
 """

@@ -63,3 +63,27 @@ figure img {
   margin-left: -20px;
   margin-right: -20px;
 }
+
+pre {
+  overflow-x: auto;
+  padding: 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+pre code {
+  font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+  font-size: inherit;
+}
+
+code {
+  font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+  font-size: 0.9em;
+}
+
+p code {
+  background: #f0f0f0;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
