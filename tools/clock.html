@@ -1,0 +1,897 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Clock</title>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      :root {
+        --bg: #ffffff;
+        --fg: #111111;
+        --fg-secondary: #555555;
+        --border: #dddddd;
+        --btn-bg: #f0f0f0;
+        --btn-hover: #e0e0e0;
+        --arc-track: #e8e8e8;
+        --arc-fill: #2563eb;
+        --arc-warn: #d97706;
+        --arc-urgent: #dc2626;
+      }
+
+      .dark {
+        --bg: #111111;
+        --fg: #f0f0f0;
+        --fg-secondary: #aaaaaa;
+        --border: #333333;
+        --btn-bg: #222222;
+        --btn-hover: #333333;
+        --arc-track: #2a2a2a;
+        --arc-fill: #3b82f6;
+        --arc-warn: #f59e0b;
+        --arc-urgent: #ef4444;
+      }
+
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+          Arial, sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        transition:
+          background 0.4s ease,
+          color 0.4s ease;
+        overflow: hidden;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
+      /* Controls bar */
+      .controls {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        padding: 12px;
+        flex-wrap: wrap;
+        z-index: 10;
+        opacity: 1;
+        transition: opacity 0.3s ease;
+      }
+
+      .controls.faded {
+        opacity: 0;
+      }
+
+      .controls:hover {
+        opacity: 1;
+      }
+
+      .ctrl-btn {
+        font-family: inherit;
+        font-size: 14px;
+        font-weight: 500;
+        padding: 6px 14px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--btn-bg);
+        color: var(--fg);
+        cursor: pointer;
+        transition: background 0.2s ease;
+        white-space: nowrap;
+      }
+
+      .ctrl-btn:hover {
+        background: var(--btn-hover);
+      }
+
+      .ctrl-btn.active {
+        background: var(--fg);
+        color: var(--bg);
+        border-color: var(--fg);
+      }
+
+      /* Main display area */
+      .display {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+      }
+
+      .time {
+        font-size: clamp(80px, 22vw, 300px);
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -0.02em;
+        line-height: 1;
+        text-align: center;
+      }
+
+      .seconds-part {
+        font-size: 0.45em;
+        font-weight: 600;
+        vertical-align: super;
+        color: var(--fg-secondary);
+      }
+
+      .date-display {
+        font-size: clamp(16px, 3vw, 28px);
+        font-weight: 400;
+        color: var(--fg-secondary);
+        letter-spacing: 0.02em;
+      }
+
+      /* Timer mode */
+      .timer-setup {
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+        padding: 24px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--btn-bg);
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 20;
+        min-width: 300px;
+      }
+
+      .timer-setup.visible {
+        display: flex;
+      }
+
+      .timer-setup label {
+        font-size: 18px;
+        font-weight: 600;
+      }
+
+      .timer-setup .spinners {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .spinner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .spinner-btn {
+        width: 64px;
+        height: 44px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--bg);
+        color: var(--fg);
+        font-size: 22px;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.15s ease;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+
+      .spinner-btn:hover {
+        background: var(--btn-hover);
+      }
+
+      .spinner-btn:active {
+        background: var(--border);
+      }
+
+      .spinner-value {
+        font-family: inherit;
+        font-size: 36px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        width: 64px;
+        text-align: center;
+        padding: 4px 0;
+      }
+
+      .spinner-unit {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--fg-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      .spinners-colon {
+        font-size: 36px;
+        font-weight: 700;
+        color: var(--fg-secondary);
+        padding-bottom: 24px;
+      }
+
+      .timer-setup .actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+      }
+
+      .overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        z-index: 15;
+      }
+
+      .overlay.visible {
+        display: block;
+      }
+
+      /* Timer display */
+      .timer-info {
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .timer-info.visible {
+        display: flex;
+      }
+
+      .timer-label {
+        font-size: clamp(14px, 2.5vw, 22px);
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--fg-secondary);
+      }
+
+      .timer-end {
+        font-size: clamp(14px, 2.5vw, 22px);
+        color: var(--fg-secondary);
+      }
+
+      .timer-extra {
+        font-size: clamp(12px, 2vw, 18px);
+        color: var(--fg-secondary);
+        font-style: italic;
+      }
+
+      /* Progress arc */
+      .arc-container {
+        display: none;
+        position: relative;
+        width: clamp(200px, 50vw, 500px);
+        height: clamp(200px, 50vw, 500px);
+      }
+
+      .arc-container.visible {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .arc-svg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        transform: rotate(-90deg);
+      }
+
+      .arc-track {
+        fill: none;
+        stroke: var(--arc-track);
+        stroke-width: 6;
+      }
+
+      .arc-fill {
+        fill: none;
+        stroke: var(--arc-fill);
+        stroke-width: 6;
+        stroke-linecap: round;
+        transition:
+          stroke-dashoffset 1s linear,
+          stroke 0.8s ease;
+      }
+
+      .arc-inner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 1;
+      }
+
+      .arc-inner .time {
+        font-size: clamp(40px, 12vw, 140px);
+      }
+
+      /* Phase labels */
+      .phase-label {
+        display: none;
+        font-size: clamp(14px, 2.5vw, 22px);
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 4px 16px;
+        border-radius: 4px;
+      }
+
+      .phase-label.visible {
+        display: block;
+      }
+
+      .phase-ample {
+        color: var(--arc-fill);
+      }
+      .phase-warning {
+        color: var(--arc-warn);
+      }
+      .phase-urgent {
+        color: var(--arc-urgent);
+      }
+
+      /* Timer controls in display */
+      .timer-controls {
+        display: none;
+        gap: 8px;
+        margin-top: 8px;
+      }
+
+      .timer-controls.visible {
+        display: flex;
+      }
+
+      @media (max-width: 480px) {
+        .controls {
+          padding: 8px;
+          gap: 4px;
+        }
+        .ctrl-btn {
+          font-size: 12px;
+          padding: 5px 10px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="controls" id="controls">
+      <button class="ctrl-btn active" id="btn-clock" title="Show current time">
+        Clock
+      </button>
+      <button class="ctrl-btn" id="btn-timer" title="Set a timer">Timer</button>
+      <span
+        style="width: 1px; background: var(--border); align-self: stretch"
+      ></span>
+      <button class="ctrl-btn" id="btn-seconds" title="Toggle seconds display">
+        Seconds
+      </button>
+      <button class="ctrl-btn" id="btn-dark" title="Toggle dark mode">
+        Dark
+      </button>
+      <button class="ctrl-btn" id="btn-fullscreen" title="Toggle fullscreen">
+        Fullscreen
+      </button>
+    </div>
+
+    <!-- Clock mode -->
+    <div class="display" id="clock-display">
+      <div class="time" id="clock-time" aria-live="polite" role="timer">
+        00:00
+      </div>
+      <div class="date-display" id="clock-date"></div>
+    </div>
+
+    <!-- Timer mode -->
+    <div class="display" id="timer-display" style="display: none">
+      <div class="arc-container visible" id="arc-container">
+        <svg class="arc-svg" viewBox="0 0 200 200" aria-hidden="true">
+          <circle class="arc-track" cx="100" cy="100" r="90" />
+          <circle
+            class="arc-fill"
+            id="arc-fill"
+            cx="100"
+            cy="100"
+            r="90"
+            stroke-dasharray="565.49"
+            stroke-dashoffset="0"
+          />
+        </svg>
+        <div class="arc-inner">
+          <div class="time" id="timer-time" aria-live="polite" role="timer">
+            00:00
+          </div>
+        </div>
+      </div>
+      <div class="timer-info visible" id="timer-info">
+        <div class="timer-label" id="timer-label">Time remaining</div>
+        <div class="phase-label" id="phase-label"></div>
+        <div class="timer-end" id="timer-end-display"></div>
+        <div class="timer-extra" id="timer-extra" style="display: none"></div>
+      </div>
+      <div class="timer-controls" id="timer-controls">
+        <button
+          class="ctrl-btn"
+          id="btn-extra-time"
+          title="Add extra time for accommodations"
+        >
+          +5 min
+        </button>
+        <button class="ctrl-btn" id="btn-pause" title="Pause timer">
+          Pause
+        </button>
+        <button
+          class="ctrl-btn"
+          id="btn-stop"
+          title="Stop timer and return to clock"
+        >
+          Stop
+        </button>
+      </div>
+    </div>
+
+    <!-- Timer setup modal -->
+    <div class="overlay" id="overlay"></div>
+    <div class="timer-setup" id="timer-setup">
+      <label>Duration</label>
+      <div class="spinners">
+        <div class="spinner">
+          <button class="spinner-btn" id="hours-up" aria-label="Increase hours">
+            &#9650;
+          </button>
+          <div class="spinner-value" id="input-hours">1</div>
+          <button
+            class="spinner-btn"
+            id="hours-down"
+            aria-label="Decrease hours"
+          >
+            &#9660;
+          </button>
+          <div class="spinner-unit">hours</div>
+        </div>
+        <div class="spinners-colon">:</div>
+        <div class="spinner">
+          <button
+            class="spinner-btn"
+            id="minutes-up"
+            aria-label="Increase minutes"
+          >
+            &#9650;
+          </button>
+          <div class="spinner-value" id="input-minutes">0</div>
+          <button
+            class="spinner-btn"
+            id="minutes-down"
+            aria-label="Decrease minutes"
+          >
+            &#9660;
+          </button>
+          <div class="spinner-unit">min</div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="ctrl-btn" id="btn-start-timer">Start</button>
+        <button class="ctrl-btn" id="btn-cancel-timer">Cancel</button>
+      </div>
+    </div>
+
+    <script>
+      (() => {
+        // State
+        let mode = "clock";
+        let showSeconds = false;
+        let isDark = false;
+        let timerInterval = null;
+        let timerEndTime = null;
+        let timerDuration = 0;
+        let timerPaused = false;
+        let timerPausedRemaining = 0;
+        let extraTimeAdded = 0;
+        let controlsFadeTimeout = null;
+
+        // Elements
+        const body = document.body;
+        const controls = document.getElementById("controls");
+        const clockDisplay = document.getElementById("clock-display");
+        const timerDisplay = document.getElementById("timer-display");
+        const clockTime = document.getElementById("clock-time");
+        const clockDate = document.getElementById("clock-date");
+        const timerTime = document.getElementById("timer-time");
+        const timerEndEl = document.getElementById("timer-end-display");
+        const timerExtraEl = document.getElementById("timer-extra");
+        const timerLabel = document.getElementById("timer-label");
+        const phaseLabel = document.getElementById("phase-label");
+        const arcFill = document.getElementById("arc-fill");
+        const timerSetup = document.getElementById("timer-setup");
+        const overlay = document.getElementById("overlay");
+        const timerControls = document.getElementById("timer-controls");
+
+        const btnClock = document.getElementById("btn-clock");
+        const btnTimer = document.getElementById("btn-timer");
+        const btnSeconds = document.getElementById("btn-seconds");
+        const btnDark = document.getElementById("btn-dark");
+        const btnFullscreen = document.getElementById("btn-fullscreen");
+        const btnStartTimer = document.getElementById("btn-start-timer");
+        const btnCancelTimer = document.getElementById("btn-cancel-timer");
+        const btnExtraTime = document.getElementById("btn-extra-time");
+        const btnPause = document.getElementById("btn-pause");
+        const btnStop = document.getElementById("btn-stop");
+        const inputHours = document.getElementById("input-hours");
+        const inputMinutes = document.getElementById("input-minutes");
+        const hoursUp = document.getElementById("hours-up");
+        const hoursDown = document.getElementById("hours-down");
+        const minutesUp = document.getElementById("minutes-up");
+        const minutesDown = document.getElementById("minutes-down");
+
+        const ARC_CIRCUMFERENCE = 2 * Math.PI * 90; // ~565.49
+
+        // Format time
+        function formatTime(date) {
+          const h = date.getHours().toString().padStart(2, "0");
+          const m = date.getMinutes().toString().padStart(2, "0");
+          const s = date.getSeconds().toString().padStart(2, "0");
+          if (showSeconds) {
+            return `${h}:${m}<span class="seconds-part">${s}</span>`;
+          }
+          return `${h}:${m}`;
+        }
+
+        function formatCountdown(totalSeconds) {
+          const neg = totalSeconds < 0;
+          const abs = Math.abs(Math.floor(totalSeconds));
+          const prefix = neg ? "−" : "";
+          const h = Math.floor(abs / 3600);
+          const m = Math.floor((abs % 3600) / 60);
+          const s = abs % 60;
+
+          // Always show seconds under an hour — "1:00" without
+          // visible countdown movement is confusing
+          if (showSeconds || abs < 3600) {
+            if (h > 0) {
+              return `${prefix}${h}:${m.toString().padStart(2, "0")}<span class="seconds-part">${s.toString().padStart(2, "0")}</span>`;
+            }
+            return `${prefix}${m}:${s.toString().padStart(2, "0")}`;
+          }
+
+          // 1h+, seconds hidden: ceil so "1:04:59" shows as "1:05"
+          const totalMin = neg ? Math.floor(abs / 60) : Math.ceil(abs / 60);
+          return `${prefix}${Math.floor(totalMin / 60)}:${(totalMin % 60).toString().padStart(2, "0")}`;
+        }
+
+        function formatDate(date) {
+          return date.toLocaleDateString(undefined, {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          });
+        }
+
+        function formatEndTime(date) {
+          return date.toLocaleTimeString(undefined, {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          });
+        }
+
+        // Update clock
+        function updateClock() {
+          const now = new Date();
+          clockTime.innerHTML = formatTime(now);
+          clockDate.textContent = formatDate(now);
+          if (mode === "clock") {
+            document.title = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")} - Clock`;
+          }
+        }
+
+        // Update timer
+        function updateTimer() {
+          if (timerPaused) return;
+
+          const now = Date.now();
+          const remaining = (timerEndTime - now) / 1000;
+          const fraction = Math.max(0, remaining / timerDuration);
+
+          timerTime.innerHTML = formatCountdown(remaining);
+
+          // Arc
+          const offset = ARC_CIRCUMFERENCE * (1 - fraction);
+          arcFill.style.strokeDashoffset = Math.min(offset, ARC_CIRCUMFERENCE);
+
+          // Phase coloring with gradual transition
+          let phase = "ample";
+          if (remaining <= 0) {
+            phase = "ended";
+          } else if (remaining <= timerDuration * 0.08) {
+            phase = "urgent";
+          } else if (remaining <= timerDuration * 0.25) {
+            phase = "warning";
+          }
+
+          arcFill.style.stroke =
+            phase === "urgent" || phase === "ended"
+              ? "var(--arc-urgent)"
+              : phase === "warning"
+                ? "var(--arc-warn)"
+                : "var(--arc-fill)";
+
+          phaseLabel.className = "phase-label visible";
+          if (phase === "ended") {
+            phaseLabel.textContent = "Time is up";
+            phaseLabel.classList.add("phase-urgent");
+            timerLabel.textContent = "Ended";
+            document.title = "Time is up - Clock";
+          } else if (phase === "urgent") {
+            const mins = Math.ceil(remaining / 60);
+            phaseLabel.textContent = `${mins} minute${mins !== 1 ? "s" : ""} remaining`;
+            phaseLabel.classList.add("phase-urgent");
+            document.title = `${formatCountdownPlain(remaining)} remaining - Clock`;
+          } else if (phase === "warning") {
+            const mins = Math.ceil(remaining / 60);
+            phaseLabel.textContent = `${mins} minute${mins !== 1 ? "s" : ""} remaining`;
+            phaseLabel.classList.add("phase-warning");
+            document.title = `${formatCountdownPlain(remaining)} remaining - Clock`;
+          } else {
+            phaseLabel.classList.remove("visible");
+            document.title = `${formatCountdownPlain(remaining)} remaining - Clock`;
+          }
+
+          if (remaining <= -60) {
+            // Stop updating once a minute past
+            // Keep showing "time is up"
+          }
+        }
+
+        function formatCountdownPlain(totalSeconds) {
+          const abs = Math.abs(Math.floor(totalSeconds));
+          const h = Math.floor(abs / 3600);
+          const m = Math.floor((abs % 3600) / 60);
+          const s = abs % 60;
+          if (h > 0)
+            return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+          return `${m}:${s.toString().padStart(2, "0")}`;
+        }
+
+        // Controls fade after inactivity
+        function resetControlsFade() {
+          controls.classList.remove("faded");
+          clearTimeout(controlsFadeTimeout);
+          if (mode === "timer" || document.fullscreenElement) {
+            controlsFadeTimeout = setTimeout(() => {
+              controls.classList.add("faded");
+            }, 4000);
+          }
+        }
+
+        document.addEventListener("mousemove", resetControlsFade);
+        document.addEventListener("touchstart", resetControlsFade);
+
+        // Mode switching
+        function switchToMode(newMode) {
+          mode = newMode;
+          btnClock.classList.toggle("active", mode === "clock");
+          btnTimer.classList.toggle("active", mode === "timer");
+
+          if (mode === "clock") {
+            clockDisplay.style.display = "";
+            timerDisplay.style.display = "none";
+            stopTimer();
+            updateClock();
+          } else {
+            // Show setup modal
+            timerSetup.classList.add("visible");
+            overlay.classList.add("visible");
+          }
+          resetControlsFade();
+        }
+
+        function startTimerCountdown() {
+          const h = parseInt(inputHours.textContent) || 0;
+          const m = parseInt(inputMinutes.textContent) || 0;
+          const totalSeconds = h * 3600 + m * 60;
+          if (totalSeconds <= 0) return;
+
+          timerDuration = totalSeconds;
+          timerEndTime = Date.now() + totalSeconds * 1000;
+          extraTimeAdded = 0;
+          timerPaused = false;
+          btnPause.textContent = "Pause";
+
+          clockDisplay.style.display = "none";
+          timerDisplay.style.display = "";
+          timerControls.classList.add("visible");
+
+          const endDate = new Date(timerEndTime);
+          timerEndEl.textContent = `Ends at ${formatEndTime(endDate)}`;
+          timerExtraEl.style.display = "none";
+
+          // Reset arc
+          arcFill.style.strokeDashoffset = "0";
+          arcFill.style.stroke = "var(--arc-fill)";
+
+          timerSetup.classList.remove("visible");
+          overlay.classList.remove("visible");
+
+          updateTimer();
+          timerInterval = setInterval(updateTimer, 250);
+          resetControlsFade();
+        }
+
+        function stopTimer() {
+          clearInterval(timerInterval);
+          timerInterval = null;
+          timerEndTime = null;
+          timerPaused = false;
+          timerControls.classList.remove("visible");
+          phaseLabel.classList.remove("visible");
+          mode = "clock";
+          btnClock.classList.add("active");
+          btnTimer.classList.remove("active");
+          clockDisplay.style.display = "";
+          timerDisplay.style.display = "none";
+          updateClock();
+        }
+
+        function togglePause() {
+          if (timerPaused) {
+            // Resume
+            timerEndTime = Date.now() + timerPausedRemaining;
+            timerPaused = false;
+            btnPause.textContent = "Pause";
+            const endDate = new Date(timerEndTime);
+            timerEndEl.textContent = `Ends at ${formatEndTime(endDate)}`;
+            timerInterval = setInterval(updateTimer, 250);
+          } else {
+            // Pause
+            timerPausedRemaining = timerEndTime - Date.now();
+            timerPaused = true;
+            btnPause.textContent = "Resume";
+            clearInterval(timerInterval);
+            timerLabel.textContent = "Paused";
+          }
+        }
+
+        function addExtraTime() {
+          if (!timerEndTime && !timerPaused) return;
+          const extra = 5 * 60 * 1000; // 5 minutes
+          extraTimeAdded += 5;
+
+          if (timerPaused) {
+            timerPausedRemaining += extra;
+          } else {
+            timerEndTime += extra;
+            const endDate = new Date(timerEndTime);
+            timerEndEl.textContent = `Ends at ${formatEndTime(endDate)}`;
+          }
+
+          timerExtraEl.textContent = `+${extraTimeAdded} min extra time added`;
+          timerExtraEl.style.display = "";
+          timerLabel.textContent = "Time remaining";
+          updateTimer();
+        }
+
+        // Toggle seconds
+        function toggleSeconds() {
+          showSeconds = !showSeconds;
+          btnSeconds.classList.toggle("active", showSeconds);
+          updateClock();
+          if (timerEndTime || timerPaused) updateTimer();
+        }
+
+        // Toggle dark mode
+        function toggleDark() {
+          isDark = !isDark;
+          body.classList.toggle("dark", isDark);
+          btnDark.classList.toggle("active", isDark);
+        }
+
+        // Fullscreen
+        function toggleFullscreen() {
+          if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(() => {});
+          } else {
+            document.exitFullscreen();
+          }
+        }
+
+        document.addEventListener("fullscreenchange", () => {
+          btnFullscreen.classList.toggle(
+            "active",
+            !!document.fullscreenElement,
+          );
+          resetControlsFade();
+        });
+
+        // Event listeners
+        btnClock.addEventListener("click", () => switchToMode("clock"));
+        btnTimer.addEventListener("click", () => switchToMode("timer"));
+        btnSeconds.addEventListener("click", toggleSeconds);
+        btnDark.addEventListener("click", toggleDark);
+        btnFullscreen.addEventListener("click", toggleFullscreen);
+        btnStartTimer.addEventListener("click", startTimerCountdown);
+        btnCancelTimer.addEventListener("click", () => {
+          timerSetup.classList.remove("visible");
+          overlay.classList.remove("visible");
+          if (!timerEndTime && !timerPaused) switchToMode("clock");
+        });
+        overlay.addEventListener("click", () => {
+          timerSetup.classList.remove("visible");
+          overlay.classList.remove("visible");
+          if (!timerEndTime && !timerPaused) switchToMode("clock");
+        });
+        btnExtraTime.addEventListener("click", addExtraTime);
+        btnPause.addEventListener("click", togglePause);
+        btnStop.addEventListener("click", stopTimer);
+
+        // Spinner buttons
+        function clamp(val, min, max) {
+          if (val > max) return min;
+          if (val < min) return max;
+          return val;
+        }
+
+        function adjustSpinner(el, delta, min, max) {
+          const current = parseInt(el.textContent) || 0;
+          el.textContent = clamp(current + delta, min, max);
+        }
+
+        hoursUp.addEventListener("click", () =>
+          adjustSpinner(inputHours, 1, 0, 12),
+        );
+        hoursDown.addEventListener("click", () =>
+          adjustSpinner(inputHours, -1, 0, 12),
+        );
+        minutesUp.addEventListener("click", () =>
+          adjustSpinner(inputMinutes, 1, 0, 59),
+        );
+        minutesDown.addEventListener("click", () =>
+          adjustSpinner(inputMinutes, -1, 0, 59),
+        );
+
+        // Keyboard shortcuts
+        document.addEventListener("keydown", (e) => {
+          if (timerSetup.classList.contains("visible")) return;
+          if (e.key === "f" || e.key === "F") toggleFullscreen();
+          if (e.key === "d" || e.key === "D") toggleDark();
+          if (e.key === "s" || e.key === "S") toggleSeconds();
+          if (e.key === " " && (timerEndTime || timerPaused)) {
+            e.preventDefault();
+            togglePause();
+          }
+        });
+
+        // Prefer dark mode if system prefers it
+        if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+          toggleDark();
+        }
+
+        // Main loop
+        updateClock();
+        setInterval(updateClock, 500);
+      })();
+    </script>
+  </body>
+</html>
