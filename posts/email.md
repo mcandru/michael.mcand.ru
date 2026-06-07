@@ -17,7 +17,7 @@ Before we start, I think it is useful to lay out the email system. There are two
   - **Mail Transfer Agent (MTA):** relays a message from one mail server to another, accross the Internet. This is typically done on port 25. In large systems, a message may pass through several MTAs before arriving at a mail server that handles messages for the receivers email.
   - **Message Store:** a mailbox where delivered mail is stored on the recipient's server until it is read by a client.
   - **Access Server:** served stored mail back to the recipients mail client when requested.
-  - **Domain Name System (DNS):** needed to figure out the IP address of the mail server to send an email address to. For example, if an email is being sent to `bob@gmail.com`, the outgoing mail server needs to figure out the IP address of a mail server associated with `gmail.com`. DNS has a specific `MX` record type that tells the sending mail server which server recives mail for a given domain.
+  - **Domain Name System (DNS):** needed to resolve the hostname of the recipient mail server. For example, if an email is being sent to `bob@gmail.com`, the outgoing mail server needs to figure out the hostname of a mail server associated with `gmail.com` and then resolve its IP address. DNS has a specific `MX` record type that tells the sending mail server which hostname receives mail for a given domain.
 
 ## Protocols
 
