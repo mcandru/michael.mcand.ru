@@ -147,6 +147,7 @@ with imaplib.IMAP4_SSL(IMAP_SERVER, PORT) as imap:
     print(parse_email(raw_bytes))
 </code></pre>
 <p>So from end to end, an email passes from a mail client to an outgoing mail server, across the DNS to locate its recipient, from server to server over SMTP, into the recipient's mailbox, and finally to the recipient mail client over IMAP.</p>
+<p>If you want to try out a more complete implementation of the Python scripts created to demonstrate IMAP and SMTP in this post, you can grab the source code here: <a href="https://gist.github.com/mcandru/e09dd5c40deee76fde65f3561492ea5f">https://gist.github.com/mcandru/e09dd5c40deee76fde65f3561492ea5f</a>.</p>
 <script src="../lib/highlight.min.js"></script>
 <script>hljs.highlightAll();</script>
 </body>
