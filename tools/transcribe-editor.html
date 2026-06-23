@@ -290,12 +290,62 @@
           throw new Error(`OpenAI API error: ${msg}`);
         }
         const data = await res.json();
-        return (data.words || []).map((w, i) => ({
-          text: (i === 0 ? "" : " ") + w.word,
+        // The words[] array has timestamps but strips punctuation.
+        // data.text has punctuation but no per-word timestamps.
+        // Align them so each word token gets the punctuated text from data.text.
+        const aligned = alignPunctuation(data.words || [], data.text || "");
+        return aligned.map((w, i) => ({
+          text: (i === 0 ? "" : " ") + w.display,
           start: w.start + offsetSecs,
           end: w.end + offsetSecs,
           deleted: false,
         }));
+      }
+
+      // Match each word token (which has timestamps but no punctuation) to the
+      // corresponding token in the full text (which has punctuation). Returns
+      // a copy of apiWords with a `display` field containing the text version.
+      function alignPunctuation(apiWords, fullText) {
+        // Tokenise the full text on whitespace — this preserves punctuation
+        // attached to words ("Hello," stays as one token).
+        const textTokens = fullText.trim().split(/\s+/).filter(Boolean);
+
+        // Helper: strip everything except letters, digits and apostrophes so
+        // "Hello," and "hello" both normalise to "hello".
+        const bare = s => s.toLowerCase().replace(/[^a-z0-9']/g, "");
+
+        // Fast path: same token count → 1-to-1 zip.
+        if (textTokens.length === apiWords.length) {
+          return apiWords.map((w, i) => ({ ...w, display: textTokens[i] }));
+        }
+
+        // Slow path: greedy sequential alignment.
+        // Walk textTokens; for each apiWord find the next textToken whose bare
+        // form matches (or contains) the bare api word. Any punctuation-only
+        // textTokens in between get appended to the previous word's display.
+        const result = [];
+        let ti = 0;
+        for (let wi = 0; wi < apiWords.length; wi++) {
+          const target = bare(apiWords[wi].word);
+          let display = apiWords[wi].word; // fallback: original
+          // Accumulate skipped punctuation tokens onto the previous word.
+          let skipped = "";
+          while (ti < textTokens.length) {
+            const b = bare(textTokens[ti]);
+            if (!b) { skipped += textTokens[ti]; ti++; continue; } // punctuation-only
+            if (b === target || b.startsWith(target) || target.startsWith(b)) {
+              display = skipped ? skipped + textTokens[ti] : textTokens[ti];
+              ti++;
+              skipped = "";
+              break;
+            }
+            // Mismatch — skip this text token (it may be an extra word not in apiWords).
+            if (result.length > 0) result[result.length - 1].display += " " + textTokens[ti];
+            ti++;
+          }
+          result.push({ ...apiWords[wi], display });
+        }
+        return result;
       }
 
       function sliceAudioBuffer(buf, startSample, endSample) {
