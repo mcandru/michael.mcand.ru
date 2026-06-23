@@ -1,0 +1,788 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Transcribe & Edit Audio</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+      }
+      .container {
+        max-width: 600px;
+        margin: auto;
+      }
+      h1,
+      p.intro {
+        text-align: center;
+      }
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        justify-content: center;
+        margin: 16px 0;
+      }
+      button {
+        font-size: 14px;
+        padding: 6px 12px;
+        cursor: pointer;
+      }
+      button:disabled {
+        cursor: default;
+        opacity: 0.5;
+      }
+      #status {
+        text-align: center;
+        color: #555;
+        min-height: 1.2em;
+        margin: 8px 0;
+      }
+      #progress-wrap {
+        display: none;
+        height: 6px;
+        background: #eee;
+        border-radius: 3px;
+        overflow: hidden;
+        margin: 8px 0;
+      }
+      #progress-bar {
+        height: 100%;
+        width: 0%;
+        background: #4a90d9;
+        transition: width 0.1s linear;
+      }
+      #transcript {
+        line-height: 2;
+        margin: 20px 0;
+        padding: 14px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        min-height: 60px;
+      }
+      #transcript:empty::before {
+        content: "Your transcript will appear here. Click a word to seek; press Delete/Backspace to remove it.";
+        color: #aaa;
+      }
+      .word {
+        cursor: pointer;
+        padding: 0 1px;
+        border-radius: 3px;
+      }
+      .word:hover {
+        background: #eef4fb;
+      }
+      .word.deleted {
+        color: #c00;
+        text-decoration: line-through;
+        opacity: 0.55;
+      }
+      .word.playing {
+        background: #ffe9a8;
+      }
+      /* Blinking cursor bar shown before the cursor word */
+      @keyframes blink {
+        50% {
+          opacity: 0;
+        }
+      }
+      .word.cursor::before {
+        content: "";
+        display: inline-block;
+        width: 2px;
+        height: 0.85em;
+        background: #4a90d9;
+        margin-right: 2px;
+        vertical-align: text-bottom;
+        animation: blink 1s step-end infinite;
+      }
+      .hint {
+        font-size: 13px;
+        color: #777;
+        text-align: center;
+      }
+      label.opt {
+        font-size: 13px;
+        color: #555;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🎙️ Transcribe &amp; Edit Audio</h1>
+      <p class="intro">
+        Upload audio, transcribe it via the OpenAI Speech-to-Text API, then
+        delete words to cut them out of the audio. Your API key stays in your
+        browser and audio is sent only to OpenAI.
+      </p>
+
+      <div class="controls">
+        <input type="file" id="file-input" accept="audio/*" />
+        <label class="opt">
+          API key:
+          <input
+            type="password"
+            id="apikey-input"
+            placeholder="sk-…"
+            size="24"
+          />
+          <span style="font-size: 11px; color: #999"> (stored in browser)</span>
+        </label>
+      </div>
+
+      <div class="controls">
+        <button id="transcribe-btn" disabled>Transcribe</button>
+        <button id="play-btn" disabled>▶ Play edited</button>
+        <button id="stop-btn" disabled>■ Stop</button>
+        <button id="export-btn" disabled>⬇ Export WAV</button>
+      </div>
+
+      <div id="progress-wrap"><div id="progress-bar"></div></div>
+      <p id="status"></p>
+
+      <div id="transcript"></div>
+      <p class="hint" id="kept-info"></p>
+    </div>
+
+    <script type="module">
+      const fileInput = document.getElementById("file-input");
+      const apikeyInput = document.getElementById("apikey-input");
+      const transcribeBtn = document.getElementById("transcribe-btn");
+      const playBtn = document.getElementById("play-btn");
+      const stopBtn = document.getElementById("stop-btn");
+      const exportBtn = document.getElementById("export-btn");
+      const statusEl = document.getElementById("status");
+      const progressWrap = document.getElementById("progress-wrap");
+      const progressBar = document.getElementById("progress-bar");
+      const transcriptEl = document.getElementById("transcript");
+      const keptInfo = document.getElementById("kept-info");
+
+      // State
+      let sourceBuffer = null; // decoded AudioBuffer of the upload (full quality, for editing)
+      let words = []; // [{ text, start, end, deleted }] — single source of truth
+      let cursorWordIdx = null; // index into words[] for the playback cursor
+      let audioCtx = null;
+      let activeSource = null;
+      let playRaf = null;
+      let playOffset = 0; // edited-buffer start time for the current playback
+
+      function getAudioCtx() {
+        if (!audioCtx)
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        return audioCtx;
+      }
+
+      function setStatus(msg) {
+        statusEl.textContent = msg;
+      }
+
+      function showProgress(frac) {
+        progressWrap.style.display = "block";
+        progressBar.style.width = Math.round(frac * 100) + "%";
+      }
+      function hideProgress() {
+        progressWrap.style.display = "none";
+        progressBar.style.width = "0%";
+      }
+
+      // ---- File load ----------------------------------------------------
+      fileInput.addEventListener("change", async () => {
+        stopPlayback();
+        const file = fileInput.files[0];
+        if (!file) return;
+        transcribeBtn.disabled = true;
+        playBtn.disabled = true;
+        stopBtn.disabled = true;
+        exportBtn.disabled = true;
+        transcriptEl.innerHTML = "";
+        words = [];
+        keptInfo.textContent = "";
+        setStatus("Decoding audio…");
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          sourceBuffer = await getAudioCtx().decodeAudioData(
+            arrayBuffer.slice(0),
+          );
+          setStatus(
+            `Loaded ${sourceBuffer.duration.toFixed(1)}s. Click "Transcribe" to begin.`,
+          );
+          transcribeBtn.disabled = false;
+        } catch (err) {
+          console.error(err);
+          setStatus(
+            "Could not decode that file. Try a different audio format.",
+          );
+          sourceBuffer = null;
+        }
+      });
+
+      // ---- Transcription ------------------------------------------------
+      transcribeBtn.addEventListener("click", async () => {
+        if (!sourceBuffer) return;
+        const apiKey = apikeyInput.value.trim();
+        if (!apiKey) {
+          setStatus("Enter an OpenAI API key first.");
+          return;
+        }
+        localStorage.setItem("oai_key", apiKey);
+
+        transcribeBtn.disabled = true;
+        fileInput.disabled = true;
+        apikeyInput.disabled = true;
+        stopPlayback();
+        words = [];
+        cursorWordIdx = null;
+        transcriptEl.innerHTML = "";
+
+        try {
+          await transcribeOpenAI(apiKey);
+          hideProgress();
+          if (words.length === 0) {
+            setStatus("No speech detected. Try another clip.");
+          } else {
+            renderTranscript();
+            setStatus(
+              "Done. Click a word to seek; press Delete/Backspace to remove it.",
+            );
+            playBtn.disabled = false;
+            exportBtn.disabled = false;
+          }
+        } catch (err) {
+          console.error(err);
+          setStatus("Transcription failed: " + (err.message || err));
+        } finally {
+          hideProgress();
+          transcribeBtn.disabled = false;
+          fileInput.disabled = false;
+          apikeyInput.disabled = false;
+        }
+      });
+
+      // ---- OpenAI transcription -----------------------------------------
+      async function transcribeOpenAI(apiKey) {
+        const file = fileInput.files[0];
+        const MAX = 24 * 1024 * 1024;
+
+        if (file.size <= MAX) {
+          setStatus("Sending to OpenAI…");
+          showProgress(0.2);
+          const result = await callOpenAIAPI(apiKey, file, 0);
+          words.push(...result);
+          showProgress(1);
+        } else {
+          // File too large — split decoded audio into ≤10-min WAV chunks.
+          const CHUNK_S = 600;
+          const rate = sourceBuffer.sampleRate;
+          const totalSamples = sourceBuffer.length;
+          const chunkSamples = CHUNK_S * rate;
+          const numChunks = Math.ceil(totalSamples / chunkSamples);
+          for (let i = 0; i < numChunks; i++) {
+            const s = i * chunkSamples;
+            const e = Math.min(totalSamples, s + chunkSamples);
+            const chunkBuf = sliceAudioBuffer(sourceBuffer, s, e);
+            const blob = audioBufferToWav(chunkBuf);
+            setStatus(`Sending chunk ${i + 1}/${numChunks} to OpenAI…`);
+            showProgress((i + 0.5) / numChunks);
+            const result = await callOpenAIAPI(apiKey, blob, s / rate);
+            words.push(...result);
+            renderTranscript();
+            showProgress((i + 1) / numChunks);
+          }
+        }
+      }
+
+      async function callOpenAIAPI(apiKey, fileOrBlob, offsetSecs) {
+        const form = new FormData();
+        const name = fileOrBlob instanceof File ? fileOrBlob.name : "audio.wav";
+        form.append("file", fileOrBlob, name);
+        form.append("model", "whisper-1");
+        form.append("response_format", "verbose_json");
+        form.append("timestamp_granularities[]", "word");
+
+        const res = await fetch(
+          "https://api.openai.com/v1/audio/transcriptions",
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${apiKey}` },
+            body: form,
+          },
+        );
+        if (!res.ok) {
+          let msg = res.statusText;
+          try {
+            msg = (await res.json()).error?.message || msg;
+          } catch {}
+          throw new Error(`OpenAI API error: ${msg}`);
+        }
+        const data = await res.json();
+        // The words[] array has timestamps but strips punctuation.
+        // data.text has punctuation but no per-word timestamps.
+        // Align them so each word token gets the punctuated text from data.text.
+        const aligned = alignPunctuation(data.words || [], data.text || "");
+        return aligned.map((w, i) => ({
+          text: (i === 0 ? "" : " ") + w.display,
+          start: w.start + offsetSecs,
+          end: w.end + offsetSecs,
+          deleted: false,
+        }));
+      }
+
+      // Match each word token (which has timestamps but no punctuation) to the
+      // corresponding token in the full text (which has punctuation). Returns
+      // a copy of apiWords with a `display` field containing the text version.
+      function alignPunctuation(apiWords, fullText) {
+        // Tokenise the full text on whitespace — this preserves punctuation
+        // attached to words ("Hello," stays as one token).
+        const textTokens = fullText.trim().split(/\s+/).filter(Boolean);
+
+        // Helper: strip everything except letters, digits and apostrophes so
+        // "Hello," and "hello" both normalise to "hello".
+        const bare = (s) => s.toLowerCase().replace(/[^a-z0-9']/g, "");
+
+        // Fast path: same token count → 1-to-1 zip.
+        if (textTokens.length === apiWords.length) {
+          return apiWords.map((w, i) => ({ ...w, display: textTokens[i] }));
+        }
+
+        // Slow path: greedy sequential alignment.
+        // Walk textTokens; for each apiWord find the next textToken whose bare
+        // form matches (or contains) the bare api word. Any punctuation-only
+        // textTokens in between get appended to the previous word's display.
+        const result = [];
+        let ti = 0;
+        for (let wi = 0; wi < apiWords.length; wi++) {
+          const target = bare(apiWords[wi].word);
+          let display = apiWords[wi].word; // fallback: original
+          // Accumulate skipped punctuation tokens onto the previous word.
+          let skipped = "";
+          while (ti < textTokens.length) {
+            const b = bare(textTokens[ti]);
+            if (!b) {
+              skipped += textTokens[ti];
+              ti++;
+              continue;
+            } // punctuation-only
+            if (b === target || b.startsWith(target) || target.startsWith(b)) {
+              display = skipped ? skipped + textTokens[ti] : textTokens[ti];
+              ti++;
+              skipped = "";
+              break;
+            }
+            // Mismatch — skip this text token (it may be an extra word not in apiWords).
+            if (result.length > 0)
+              result[result.length - 1].display += " " + textTokens[ti];
+            ti++;
+          }
+          result.push({ ...apiWords[wi], display });
+        }
+        return result;
+      }
+
+      function sliceAudioBuffer(buf, startSample, endSample) {
+        const len = endSample - startSample;
+        const out = getAudioCtx().createBuffer(
+          buf.numberOfChannels,
+          len,
+          buf.sampleRate,
+        );
+        for (let c = 0; c < buf.numberOfChannels; c++)
+          out
+            .getChannelData(c)
+            .set(buf.getChannelData(c).subarray(startSample, endSample));
+        return out;
+      }
+
+      // ---- Transcript UI ------------------------------------------------
+      function renderTranscript() {
+        transcriptEl.innerHTML = "";
+        words.forEach((w, i) => {
+          const span = document.createElement("span");
+          span.className = "word" + (w.deleted ? " deleted" : "");
+          span.textContent = w.text;
+          span.dataset.index = i;
+          span.addEventListener("click", () => setCursor(i));
+          transcriptEl.appendChild(span);
+        });
+        if (cursorWordIdx !== null) applyCursorClass();
+        updateKeptInfo();
+      }
+
+      function setCursor(idx) {
+        cursorWordIdx = idx;
+        applyCursorClass();
+        // If already playing, seek to the new position.
+        if (activeSource) {
+          stopPlayback(/* keepCursor */ true);
+          startPlayback();
+        }
+      }
+
+      function applyCursorClass() {
+        transcriptEl
+          .querySelectorAll(".word.cursor")
+          .forEach((s) => s.classList.remove("cursor"));
+        if (cursorWordIdx === null) return;
+        const span = transcriptEl.querySelector(
+          `.word[data-index="${cursorWordIdx}"]`,
+        );
+        if (span) span.classList.add("cursor");
+      }
+
+      // Map the cursor word's original start time to a position in the edited buffer.
+      function editedOffsetForCursor() {
+        if (cursorWordIdx === null) return 0;
+        // If cursor word is deleted, advance to the next non-deleted word.
+        let origT = null;
+        for (let i = cursorWordIdx; i < words.length; i++) {
+          if (!words[i].deleted) {
+            origT = words[i].start;
+            break;
+          }
+        }
+        if (origT === null) return 0;
+
+        const intervals = keptIntervals();
+        let acc = 0;
+        for (const [a, b] of intervals) {
+          if (origT <= a) return acc; // cursor is before this interval
+          if (origT < b) return acc + (origT - a); // cursor is within this interval
+          acc += b - a;
+        }
+        return acc;
+      }
+
+      function updateKeptInfo() {
+        const intervals = keptIntervals();
+        const kept = intervals.reduce((s, [a, b]) => s + (b - a), 0);
+        const deletedCount = words.filter((w) => w.deleted).length;
+        keptInfo.textContent = `${deletedCount} word(s) deleted — edited length ≈ ${kept.toFixed(1)}s`;
+      }
+
+      // ---- Audio editing ------------------------------------------------
+      // Build kept intervals by walking the word list in order and grouping
+      // consecutive kept words into one interval. A cut is only introduced
+      // where a deleted word sits between two kept words — natural pauses
+      // within a run of kept words are preserved untouched.
+      function keptIntervals() {
+        const intervals = [];
+        let runStart = null,
+          runEnd = null;
+        for (const w of words) {
+          if (!w.deleted) {
+            if (runStart === null) runStart = w.start;
+            runEnd = w.end;
+          } else if (runStart !== null) {
+            intervals.push([runStart, runEnd]);
+            runStart = null;
+          }
+        }
+        if (runStart !== null) intervals.push([runStart, runEnd]);
+        return intervals;
+      }
+
+      function buildEditedBuffer() {
+        const intervals = keptIntervals();
+        if (intervals.length === 0) {
+          return getAudioCtx().createBuffer(
+            sourceBuffer.numberOfChannels,
+            1,
+            sourceBuffer.sampleRate,
+          );
+        }
+
+        const rate = sourceBuffer.sampleRate;
+        const chs = sourceBuffer.numberOfChannels;
+        const ref = sourceBuffer.getChannelData(0);
+        // 25ms equal-power crossfade at every cut joint.
+        const cf = Math.round(0.025 * rate);
+
+        // Snap each cut boundary to the nearest silence within ±100ms.
+        // Only move internal boundaries — leave the natural start of the first
+        // segment and end of the last segment exactly where they are.
+        const ranges = intervals.map(([a, b], idx) => {
+          let s = Math.max(0, Math.round(a * rate));
+          let e = Math.min(sourceBuffer.length, Math.round(b * rate));
+          if (idx > 0) s = findSilenceSample(ref, s, rate);
+          if (idx < intervals.length - 1) e = findSilenceSample(ref, e, rate);
+          return [s, Math.max(s + 1, e)];
+        });
+
+        // True crossfade: at each join the last cf samples of segment A and
+        // first cf samples of segment B overlap and are mixed together, so the
+        // output is shorter by cf per join.
+        const numJoins = ranges.length - 1;
+        const rawTotal = ranges.reduce((sum, [s, e]) => sum + (e - s), 0);
+        const total = Math.max(1, rawTotal - numJoins * cf);
+
+        const ctx = getAudioCtx();
+        const out = ctx.createBuffer(chs, total, rate);
+
+        for (let c = 0; c < chs; c++) {
+          const src = sourceBuffer.getChannelData(c);
+          const dst = out.getChannelData(c);
+          let outPos = 0;
+
+          for (let ri = 0; ri < ranges.length; ri++) {
+            const [s, e] = ranges[ri];
+            const len = e - s;
+            const hasPrev = ri > 0;
+            const hasNext = ri < ranges.length - 1;
+
+            // Cap fade lengths so they never exceed half the segment.
+            const fadeIn = hasPrev ? Math.min(cf, Math.floor(len / 2)) : 0;
+            const fadeOut = hasNext
+              ? Math.min(cf, Math.floor((len - fadeIn) / 2))
+              : 0;
+            const straight = len - fadeIn - fadeOut;
+
+            // Fade-in: ADD on top of the fade-out the previous segment already
+            // wrote here — this is what makes it a true mix rather than a gap.
+            for (let i = 0; i < fadeIn; i++) {
+              const g = Math.sin(((i / cf) * Math.PI) / 2); // equal-power 0→1
+              dst[outPos + i] += src[s + i] * g;
+            }
+            outPos += fadeIn;
+
+            // Straight copy — no modification.
+            for (let i = 0; i < straight; i++)
+              dst[outPos + i] = src[s + fadeIn + i];
+            outPos += straight;
+
+            // Fade-out: write values but do NOT advance outPos — the next
+            // segment's fade-in will add to these same positions.
+            for (let i = 0; i < fadeOut; i++) {
+              const g = Math.cos(((i / cf) * Math.PI) / 2); // equal-power 1→0
+              dst[outPos + i] = src[s + fadeIn + straight + i] * g;
+            }
+            // Only advance past the fade-out on the last segment (no overlap needed).
+            if (!hasNext) outPos += fadeOut;
+          }
+        }
+        return out;
+      }
+
+      // Find the center of the lowest-RMS 8ms frame within ±100ms of targetSample.
+      // Speech silence is far more reliably detected by energy than by zero-crossings.
+      function findSilenceSample(data, targetSample, rate) {
+        const searchSamples = Math.round(0.1 * rate);
+        const frameSamples = Math.max(1, Math.round(0.008 * rate));
+        const hop = Math.max(1, frameSamples >> 1);
+        const lo = Math.max(0, targetSample - searchSamples);
+        const hi = Math.min(
+          data.length - frameSamples,
+          targetSample + searchSamples,
+        );
+        let best = targetSample,
+          bestE = Infinity;
+        for (let s = lo; s < hi; s += hop) {
+          let e = 0;
+          for (let i = 0; i < frameSamples; i++) e += data[s + i] ** 2;
+          if (e < bestE) {
+            bestE = e;
+            best = s + (frameSamples >> 1);
+          }
+        }
+        return Math.max(0, Math.min(data.length - 1, best));
+      }
+
+      // ---- Playback -----------------------------------------------------
+      playBtn.addEventListener("click", () => {
+        if (!sourceBuffer) return;
+        stopPlayback(/* keepCursor */ true);
+        startPlayback();
+      });
+
+      function startPlayback() {
+        const edited = buildEditedBuffer();
+        if (edited.length <= 1) {
+          setStatus("Nothing left to play — every word is deleted.");
+          return;
+        }
+        const ctx = getAudioCtx();
+        if (ctx.state === "suspended") ctx.resume();
+
+        playOffset = editedOffsetForCursor();
+
+        const node = ctx.createBufferSource();
+        node.buffer = edited;
+        node.connect(ctx.destination);
+        node.start(0, playOffset);
+        activeSource = node;
+        stopBtn.disabled = false;
+        playBtn.disabled = true;
+
+        // Map edited-timeline position back to original-timeline for word highlighting.
+        const intervals = keptIntervals();
+        const keptWords = words.filter((w) => !w.deleted);
+        const startTime = ctx.currentTime;
+        // Each entry: [editedStart, editedEnd, origStart]
+        const map = [];
+        let acc = 0;
+        for (const [a, b] of intervals) {
+          map.push([acc, acc + (b - a), a]);
+          acc += b - a;
+        }
+        const totalDur = acc;
+
+        const tick = () => {
+          const t = playOffset + (ctx.currentTime - startTime);
+          if (t >= totalDur) {
+            stopPlayback();
+            return;
+          }
+          let origT = null;
+          for (const [es, ee, oa] of map) {
+            if (t >= es && t <= ee) {
+              origT = oa + (t - es);
+              break;
+            }
+          }
+          highlightAtTime(origT, keptWords);
+          playRaf = requestAnimationFrame(tick);
+        };
+        playRaf = requestAnimationFrame(tick);
+        node.onended = () => {
+          if (activeSource === node) stopPlayback();
+        };
+      }
+
+      function highlightAtTime(origT, keptWords) {
+        clearHighlight();
+        if (origT == null) return;
+        // Highlight the last word that has started. This keeps the highlight
+        // steady during natural pauses between words instead of blinking off.
+        let best = null;
+        for (const w of keptWords) {
+          if (w.start <= origT) best = w;
+          else break;
+        }
+        if (!best) return;
+        const idx = words.indexOf(best);
+        const span = transcriptEl.querySelector(`.word[data-index="${idx}"]`);
+        if (span) span.classList.add("playing");
+      }
+
+      function clearHighlight() {
+        transcriptEl
+          .querySelectorAll(".word.playing")
+          .forEach((s) => s.classList.remove("playing"));
+      }
+
+      stopBtn.addEventListener("click", stopPlayback);
+
+      function stopPlayback(keepCursor = false) {
+        if (activeSource) {
+          try {
+            activeSource.onended = null;
+            activeSource.stop();
+          } catch (e) {}
+          activeSource = null;
+        }
+        if (playRaf) {
+          cancelAnimationFrame(playRaf);
+          playRaf = null;
+        }
+        clearHighlight();
+        stopBtn.disabled = true;
+        if (words.length) playBtn.disabled = false;
+        if (!keepCursor) {
+          cursorWordIdx = null;
+          applyCursorClass();
+        }
+      }
+
+      // Delete/Backspace: toggle the deleted state of the cursor word.
+      document.addEventListener("keydown", (e) => {
+        const tag = document.activeElement?.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+        if (e.key !== "Delete" && e.key !== "Backspace") return;
+        if (cursorWordIdx === null) return;
+        e.preventDefault();
+        words[cursorWordIdx].deleted = !words[cursorWordIdx].deleted;
+        const span = transcriptEl.querySelector(
+          `.word[data-index="${cursorWordIdx}"]`,
+        );
+        if (span)
+          span.classList.toggle("deleted", words[cursorWordIdx].deleted);
+        // Advance cursor to the next word after a delete so repeated presses flow forward.
+        if (words[cursorWordIdx].deleted && cursorWordIdx < words.length - 1) {
+          cursorWordIdx++;
+          applyCursorClass();
+        }
+        updateKeptInfo();
+      });
+
+      // ---- Export -------------------------------------------------------
+      exportBtn.addEventListener("click", () => {
+        if (!sourceBuffer) return;
+        const edited = buildEditedBuffer();
+        const blob = audioBufferToWav(edited);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        const base =
+          (fileInput.files[0] &&
+            fileInput.files[0].name.replace(/\.[^.]+$/, "")) ||
+          "audio";
+        a.href = url;
+        a.download = base + "-edited.wav";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      });
+
+      // Encode an AudioBuffer to a 16-bit PCM WAV Blob.
+      function audioBufferToWav(buffer) {
+        const numCh = buffer.numberOfChannels;
+        const len = buffer.length;
+        const rate = buffer.sampleRate;
+        const blockAlign = numCh * 2;
+        const dataSize = len * blockAlign;
+        const ab = new ArrayBuffer(44 + dataSize);
+        const view = new DataView(ab);
+
+        const writeStr = (off, str) => {
+          for (let i = 0; i < str.length; i++)
+            view.setUint8(off + i, str.charCodeAt(i));
+        };
+        writeStr(0, "RIFF");
+        view.setUint32(4, 36 + dataSize, true);
+        writeStr(8, "WAVE");
+        writeStr(12, "fmt ");
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true); // PCM
+        view.setUint16(22, numCh, true);
+        view.setUint32(24, rate, true);
+        view.setUint32(28, rate * blockAlign, true);
+        view.setUint16(32, blockAlign, true);
+        view.setUint16(34, 16, true); // bits per sample
+        writeStr(36, "data");
+        view.setUint32(40, dataSize, true);
+
+        const channels = [];
+        for (let c = 0; c < numCh; c++) channels.push(buffer.getChannelData(c));
+        let off = 44;
+        for (let i = 0; i < len; i++) {
+          for (let c = 0; c < numCh; c++) {
+            let s = Math.max(-1, Math.min(1, channels[c][i]));
+            s = s < 0 ? s * 0x8000 : s * 0x7fff;
+            view.setInt16(off, s, true);
+            off += 2;
+          }
+        }
+        return new Blob([view], { type: "audio/wav" });
+      }
+
+      // ---- Init ---------------------------------------------------------
+      apikeyInput.value = localStorage.getItem("oai_key") || "";
+      apikeyInput.addEventListener("change", () => {
+        localStorage.setItem("oai_key", apikeyInput.value.trim());
+      });
+      setStatus(
+        "Enter your OpenAI API key, upload a file, then click Transcribe.",
+      );
+    </script>
+  </body>
+</html>
