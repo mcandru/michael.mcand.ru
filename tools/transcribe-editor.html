@@ -440,53 +440,93 @@
 
       function buildEditedBuffer() {
         const intervals = keptIntervals();
-        const rate = sourceBuffer.sampleRate;
-        const chs = sourceBuffer.numberOfChannels;
-        const fadeSamples = Math.round(0.005 * rate); // 5ms fade at each cut join
-        const searchSamples = Math.round(0.005 * rate);
+        if (intervals.length === 0) {
+          return getAudioCtx().createBuffer(sourceBuffer.numberOfChannels, 1, sourceBuffer.sampleRate);
+        }
 
-        const ref = sourceBuffer.getChannelData(0);
-        const ranges = intervals.map(([a, b]) => {
+        const rate = sourceBuffer.sampleRate;
+        const chs  = sourceBuffer.numberOfChannels;
+        const ref  = sourceBuffer.getChannelData(0);
+        // 25ms equal-power crossfade at every cut joint.
+        const cf = Math.round(0.025 * rate);
+
+        // Snap each cut boundary to the nearest silence within ±100ms.
+        // Only move internal boundaries — leave the natural start of the first
+        // segment and end of the last segment exactly where they are.
+        const ranges = intervals.map(([a, b], idx) => {
           let s = Math.max(0, Math.round(a * rate));
           let e = Math.min(sourceBuffer.length, Math.round(b * rate));
-          s = snapZeroCross(ref, s, searchSamples);
-          e = snapZeroCross(ref, e, searchSamples);
-          return [s, Math.max(s, e)];
+          if (idx > 0)                    s = findSilenceSample(ref, s, rate);
+          if (idx < intervals.length - 1) e = findSilenceSample(ref, e, rate);
+          return [s, Math.max(s + 1, e)];
         });
 
-        const total = ranges.reduce((sum, [s, e]) => sum + (e - s), 0);
+        // True crossfade: at each join the last cf samples of segment A and
+        // first cf samples of segment B overlap and are mixed together, so the
+        // output is shorter by cf per join.
+        const numJoins  = ranges.length - 1;
+        const rawTotal  = ranges.reduce((sum, [s, e]) => sum + (e - s), 0);
+        const total     = Math.max(1, rawTotal - numJoins * cf);
+
         const ctx = getAudioCtx();
-        const out = ctx.createBuffer(chs, Math.max(1, total), rate);
+        const out = ctx.createBuffer(chs, total, rate);
 
         for (let c = 0; c < chs; c++) {
           const src = sourceBuffer.getChannelData(c);
           const dst = out.getChannelData(c);
-          let offset = 0;
-          for (const [s, e] of ranges) {
-            const len = e - s;
-            for (let i = 0; i < len; i++) dst[offset + i] = src[s + i];
-            const f = Math.min(fadeSamples, Math.floor(len / 2));
-            for (let i = 0; i < f; i++) {
-              dst[offset + i] *= i / f;
-              dst[offset + len - 1 - i] *= i / f;
+          let outPos = 0;
+
+          for (let ri = 0; ri < ranges.length; ri++) {
+            const [s, e] = ranges[ri];
+            const len    = e - s;
+            const hasPrev = ri > 0;
+            const hasNext = ri < ranges.length - 1;
+
+            // Cap fade lengths so they never exceed half the segment.
+            const fadeIn  = hasPrev ? Math.min(cf, Math.floor(len / 2)) : 0;
+            const fadeOut = hasNext ? Math.min(cf, Math.floor((len - fadeIn) / 2)) : 0;
+            const straight = len - fadeIn - fadeOut;
+
+            // Fade-in: ADD on top of the fade-out the previous segment already
+            // wrote here — this is what makes it a true mix rather than a gap.
+            for (let i = 0; i < fadeIn; i++) {
+              const g = Math.sin((i / cf) * Math.PI / 2); // equal-power 0→1
+              dst[outPos + i] += src[s + i] * g;
             }
-            offset += len;
+            outPos += fadeIn;
+
+            // Straight copy — no modification.
+            for (let i = 0; i < straight; i++) dst[outPos + i] = src[s + fadeIn + i];
+            outPos += straight;
+
+            // Fade-out: write values but do NOT advance outPos — the next
+            // segment's fade-in will add to these same positions.
+            for (let i = 0; i < fadeOut; i++) {
+              const g = Math.cos((i / cf) * Math.PI / 2); // equal-power 1→0
+              dst[outPos + i] = src[s + fadeIn + straight + i] * g;
+            }
+            // Only advance past the fade-out on the last segment (no overlap needed).
+            if (!hasNext) outPos += fadeOut;
           }
         }
         return out;
       }
 
-      function snapZeroCross(data, idx, window) {
-        const lo = Math.max(1, idx - window);
-        const hi = Math.min(data.length - 1, idx + window);
-        let best = idx, bestDist = Infinity;
-        for (let i = lo; i <= hi; i++) {
-          if ((data[i - 1] <= 0 && data[i] >= 0) || (data[i - 1] >= 0 && data[i] <= 0)) {
-            const d = Math.abs(i - idx);
-            if (d < bestDist) { bestDist = d; best = i; }
-          }
+      // Find the center of the lowest-RMS 8ms frame within ±100ms of targetSample.
+      // Speech silence is far more reliably detected by energy than by zero-crossings.
+      function findSilenceSample(data, targetSample, rate) {
+        const searchSamples = Math.round(0.100 * rate);
+        const frameSamples  = Math.max(1, Math.round(0.008 * rate));
+        const hop           = Math.max(1, frameSamples >> 1);
+        const lo = Math.max(0, targetSample - searchSamples);
+        const hi = Math.min(data.length - frameSamples, targetSample + searchSamples);
+        let best = targetSample, bestE = Infinity;
+        for (let s = lo; s < hi; s += hop) {
+          let e = 0;
+          for (let i = 0; i < frameSamples; i++) e += data[s + i] ** 2;
+          if (e < bestE) { bestE = e; best = s + (frameSamples >> 1); }
         }
-        return best;
+        return Math.max(0, Math.min(data.length - 1, best));
       }
 
       // ---- Playback -----------------------------------------------------
