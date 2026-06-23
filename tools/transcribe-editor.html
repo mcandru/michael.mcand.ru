@@ -109,6 +109,13 @@
       <div class="controls">
         <input type="file" id="file-input" accept="audio/*" />
         <label class="opt">
+          Method:
+          <select id="method-select">
+            <option value="local">Local (in-browser)</option>
+            <option value="openai">OpenAI API (faster)</option>
+          </select>
+        </label>
+        <label class="opt" id="model-label">
           Model:
           <select id="model-select">
             <option value="onnx-community/whisper-base_timestamped" selected>
@@ -118,6 +125,11 @@
               tiny · English-only · ~3-5× faster
             </option>
           </select>
+        </label>
+        <label class="opt hidden" id="apikey-label">
+          API key:
+          <input type="password" id="apikey-input" placeholder="sk-…" size="24" />
+          <span style="font-size:11px;color:#999"> (stored locally in browser)</span>
         </label>
       </div>
 
@@ -145,7 +157,11 @@
       env.allowLocalModels = false;
 
       const fileInput = document.getElementById("file-input");
+      const methodSelect = document.getElementById("method-select");
+      const modelLabel = document.getElementById("model-label");
       const modelSelect = document.getElementById("model-select");
+      const apikeyLabel = document.getElementById("apikey-label");
+      const apikeyInput = document.getElementById("apikey-input");
       const transcribeBtn = document.getElementById("transcribe-btn");
       const playBtn = document.getElementById("play-btn");
       const stopBtn = document.getElementById("stop-btn");
@@ -247,102 +263,20 @@
         if (!sourceBuffer) return;
         transcribeBtn.disabled = true;
         fileInput.disabled = true;
+        methodSelect.disabled = true;
         modelSelect.disabled = true;
+        apikeyInput.disabled = true;
         stopPlayback();
+        words = [];
 
-        const modelId = modelSelect.value;
         try {
-          if (!transcriber || loadedModelId !== modelId) {
-            transcriber = null;
-            setStatus(
-              `Loading model (${device}). First time downloads ~tens of MB…`,
-            );
-            transcriber = await pipeline(
-              "automatic-speech-recognition",
-              modelId,
-              {
-                device,
-                dtype: DTYPE,
-                progress_callback: (p) => {
-                  if (p.status === "progress" && p.total) {
-                    showProgress(p.loaded / p.total);
-                    setStatus(`Downloading ${p.file || "model"}…`);
-                  } else if (p.status === "ready") {
-                    hideProgress();
-                  }
-                },
-              },
-            );
-            loadedModelId = modelId;
-          }
-          hideProgress();
-
-          // Whisper wants 16kHz mono Float32. Downmix + resample ourselves.
-          const audio = toMono16k(sourceBuffer);
-          const RATE = 16000;
-          const totalDur = audio.length / RATE;
-          setStatus("Transcribing…");
-
-          // Transcribe in sequential windows so we can show real progress and grow
-          // the transcript live. Windows overlap by `overlap` seconds so a word near a
-          // boundary is captured whole by exactly one window — the one whose
-          // non-overlap region contains the word's start.
-          // 30s windows match Whisper's native context length — the encoder always
-          // processes a full 30s mel spectrogram regardless of input length, so smaller
-          // windows waste encoder work without any benefit.
-          const winLen = 30,
-            overlap = 2,
-            step = winLen - overlap;
-          const numWindows = Math.max(
-            1,
-            Math.ceil((totalDur - overlap) / step),
-          );
-          words = [];
-          let lastEnd = 0;
-          const t0 = performance.now();
-          showProgress(0);
-
-          for (let w = 0; w < numWindows; w++) {
-            const winStart = w * step;
-            const s = Math.floor(winStart * RATE);
-            const e = Math.min(
-              audio.length,
-              Math.floor((winStart + winLen) * RATE),
-            );
-            if (e <= s) break;
-            const slice = audio.subarray(s, e); // view, no copy
-
-            const out = await transcriber(slice, {
-              return_timestamps: "word",
-              chunk_length_s: winLen,
-            });
-
-            const cutoff = w === numWindows - 1 ? Infinity : winStart + step;
-            for (const c of out.chunks || []) {
-              if (
-                !c.timestamp ||
-                c.timestamp[0] == null ||
-                c.timestamp[1] == null
-              )
-                continue;
-              const start = c.timestamp[0] + winStart;
-              const end = c.timestamp[1] + winStart;
-              if (start >= cutoff) continue; // belongs to the next window
-              if (start < lastEnd - 0.1) continue; // safety dedupe of overlap
-              words.push({ text: c.text, start, end, deleted: false });
-              lastEnd = Math.max(lastEnd, end);
-            }
-
-            renderTranscript(); // live growth
-            const frac = (w + 1) / numWindows;
-            showProgress(frac);
-            const elapsed = (performance.now() - t0) / 1000;
-            const eta = frac > 0 ? elapsed / frac - elapsed : 0;
-            setStatus(
-              `Transcribing… ${Math.round(frac * 100)}%` +
-                (w < numWindows - 1 ? ` — about ${fmtDur(eta)} left` : ""),
-            );
-            await new Promise((r) => setTimeout(r)); // let the UI repaint
+          if (methodSelect.value === "openai") {
+            const apiKey = apikeyInput.value.trim();
+            if (!apiKey) throw new Error("Enter an OpenAI API key above.");
+            localStorage.setItem("oai_key", apiKey);
+            await transcribeOpenAI(apiKey);
+          } else {
+            await transcribeLocal();
           }
 
           hideProgress();
@@ -350,9 +284,7 @@
             setStatus("No speech detected. Try another clip.");
           } else {
             renderTranscript();
-            setStatus(
-              "Done. Click words to delete them, then preview or export.",
-            );
+            setStatus("Done. Click words to delete them, then preview or export.");
             playBtn.disabled = false;
             exportBtn.disabled = false;
           }
@@ -363,9 +295,82 @@
           hideProgress();
           transcribeBtn.disabled = false;
           fileInput.disabled = false;
+          methodSelect.disabled = false;
           modelSelect.disabled = false;
+          apikeyInput.disabled = false;
         }
       });
+
+      async function transcribeLocal() {
+        const modelId = modelSelect.value;
+        if (!transcriber || loadedModelId !== modelId) {
+          transcriber = null;
+          setStatus(`Loading model (${device}). First time downloads ~tens of MB…`);
+          transcriber = await pipeline("automatic-speech-recognition", modelId, {
+            device,
+            dtype: DTYPE,
+            progress_callback: (p) => {
+              if (p.status === "progress" && p.total) {
+                showProgress(p.loaded / p.total);
+                setStatus(`Downloading ${p.file || "model"}…`);
+              } else if (p.status === "ready") {
+                hideProgress();
+              }
+            },
+          });
+          loadedModelId = modelId;
+        }
+        hideProgress();
+
+        // Whisper wants 16kHz mono Float32. Downmix + resample ourselves.
+        const audio = toMono16k(sourceBuffer);
+        const RATE = 16000;
+        const totalDur = audio.length / RATE;
+        setStatus("Transcribing…");
+
+        // Transcribe in sequential 30s windows with 2s overlap so a word near a
+        // boundary lands whole in exactly one window. 30s matches Whisper's native
+        // context length — the encoder always processes a full 30s mel spectrogram
+        // regardless of input length, so smaller windows waste encoder work.
+        const winLen = 30, overlap = 2, step = winLen - overlap;
+        const numWindows = Math.max(1, Math.ceil((totalDur - overlap) / step));
+        let lastEnd = 0;
+        const t0 = performance.now();
+        showProgress(0);
+
+        for (let w = 0; w < numWindows; w++) {
+          const winStart = w * step;
+          const s = Math.floor(winStart * RATE);
+          const e = Math.min(audio.length, Math.floor((winStart + winLen) * RATE));
+          if (e <= s) break;
+          const slice = audio.subarray(s, e); // view, no copy
+
+          const out = await transcriber(slice, {
+            return_timestamps: "word",
+            chunk_length_s: winLen,
+          });
+
+          const cutoff = w === numWindows - 1 ? Infinity : winStart + step;
+          for (const c of out.chunks || []) {
+            if (!c.timestamp || c.timestamp[0] == null || c.timestamp[1] == null) continue;
+            const start = c.timestamp[0] + winStart;
+            const end = c.timestamp[1] + winStart;
+            if (start >= cutoff) continue;
+            if (start < lastEnd - 0.1) continue;
+            words.push({ text: c.text, start, end, deleted: false });
+            lastEnd = Math.max(lastEnd, end);
+          }
+
+          renderTranscript();
+          const frac = (w + 1) / numWindows;
+          showProgress(frac);
+          const elapsed = (performance.now() - t0) / 1000;
+          const eta = frac > 0 ? elapsed / frac - elapsed : 0;
+          setStatus(`Transcribing… ${Math.round(frac * 100)}%` +
+            (w < numWindows - 1 ? ` — about ${fmtDur(eta)} left` : ""));
+          await new Promise((r) => setTimeout(r));
+        }
+      }
 
       // Downmix to mono and resample to 16kHz, returning a Float32Array.
       function toMono16k(buffer) {
@@ -658,7 +663,100 @@
         return new Blob([view], { type: "audio/wav" });
       }
 
+      // ---- OpenAI transcription -----------------------------------------
+      // Sends the original file (or WAV chunks if >24 MB) to the Whisper API
+      // and maps the response onto the same words[] format as the local path.
+      async function transcribeOpenAI(apiKey) {
+        const file = fileInput.files[0];
+        const MAX = 24 * 1024 * 1024;
+
+        if (file.size <= MAX) {
+          setStatus("Sending to OpenAI…");
+          showProgress(0.1);
+          const result = await callOpenAIAPI(apiKey, file, 0);
+          words.push(...result);
+          renderTranscript();
+          showProgress(1);
+        } else {
+          // File is too large — split decoded audio into ≤10-min WAV chunks.
+          const CHUNK_S = 600;
+          const rate = sourceBuffer.sampleRate;
+          const totalSamples = sourceBuffer.length;
+          const chunkSamples = CHUNK_S * rate;
+          const numChunks = Math.ceil(totalSamples / chunkSamples);
+          for (let i = 0; i < numChunks; i++) {
+            const s = i * chunkSamples;
+            const e = Math.min(totalSamples, s + chunkSamples);
+            const offsetSecs = s / rate;
+            const chunkBuf = sliceAudioBuffer(sourceBuffer, s, e);
+            const blob = audioBufferToWav(chunkBuf);
+            const eta = null; // unknown for chunked path
+            setStatus(`Sending chunk ${i + 1}/${numChunks} to OpenAI…`);
+            showProgress((i + 0.5) / numChunks);
+            const result = await callOpenAIAPI(apiKey, blob, offsetSecs);
+            words.push(...result);
+            renderTranscript();
+            showProgress((i + 1) / numChunks);
+          }
+        }
+      }
+
+      async function callOpenAIAPI(apiKey, fileOrBlob, offsetSecs) {
+        const form = new FormData();
+        const name = fileOrBlob instanceof File ? fileOrBlob.name : "audio.wav";
+        form.append("file", fileOrBlob, name);
+        form.append("model", "whisper-1");
+        form.append("response_format", "verbose_json");
+        form.append("timestamp_granularities[]", "word");
+
+        const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}` },
+          body: form,
+        });
+        if (!res.ok) {
+          let msg = res.statusText;
+          try { msg = (await res.json()).error?.message || msg; } catch {}
+          throw new Error(`OpenAI API error: ${msg}`);
+        }
+        const data = await res.json();
+        return (data.words || []).map((w, i) => ({
+          text: (i === 0 ? "" : " ") + w.word,
+          start: w.start + offsetSecs,
+          end: w.end + offsetSecs,
+          deleted: false,
+        }));
+      }
+
+      function sliceAudioBuffer(buf, startSample, endSample) {
+        const len = endSample - startSample;
+        const out = getAudioCtx().createBuffer(buf.numberOfChannels, len, buf.sampleRate);
+        for (let c = 0; c < buf.numberOfChannels; c++) {
+          out.getChannelData(c).set(buf.getChannelData(c).subarray(startSample, endSample));
+        }
+        return out;
+      }
+
       // ---- Init ---------------------------------------------------------
+      // Restore saved API key if present.
+      apikeyInput.value = localStorage.getItem("oai_key") || "";
+      apikeyInput.addEventListener("change", () => {
+        localStorage.setItem("oai_key", apikeyInput.value.trim());
+      });
+
+      // Toggle local vs OpenAI controls.
+      methodSelect.addEventListener("change", () => {
+        const isOpenAI = methodSelect.value === "openai";
+        modelLabel.classList.toggle("hidden", isOpenAI);
+        apikeyLabel.classList.toggle("hidden", !isOpenAI);
+        if (sourceBuffer) transcribeBtn.disabled = false;
+        setStatus(isOpenAI
+          ? "Enter your OpenAI API key above, then click Transcribe."
+          : webgpuAvailable
+            ? "WebGPU ready — transcription will be fast."
+            : "⚠️ WebGPU unavailable — using WASM (3-5× slower). For best speed use Chrome or Edge.");
+      });
+
       setStatus(webgpuAvailable
         ? "WebGPU ready — transcription will be fast."
         : "⚠️ WebGPU unavailable — using WASM (3-5× slower than real-time). For best speed use Chrome or Edge.");
