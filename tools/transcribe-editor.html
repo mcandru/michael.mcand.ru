@@ -156,7 +156,19 @@
       const transcriptEl = document.getElementById("transcript");
       const keptInfo = document.getElementById("kept-info");
 
-      const webgpuAvailable = "gpu" in navigator;
+      // Async check: 'gpu' in navigator only means the API exists; requestAdapter()
+      // confirms the browser can actually hand us a GPU. Falls back to wasm if not.
+      async function detectDevice() {
+        if (!("gpu" in navigator)) return "wasm";
+        try {
+          const adapter = await navigator.gpu.requestAdapter();
+          return adapter ? "webgpu" : "wasm";
+        } catch {
+          return "wasm";
+        }
+      }
+      const device = await detectDevice();
+      const webgpuAvailable = device === "webgpu";
 
       // Per-device quantisation. The _timestamped exports keep the encoder in fp32 and
       // quantise the decoder; q4 fits WebGPU memory, q8 is the WASM-friendly choice.
@@ -242,7 +254,6 @@
         try {
           if (!transcriber || loadedModelId !== modelId) {
             transcriber = null;
-            const device = webgpuAvailable ? "webgpu" : "wasm";
             setStatus(
               `Loading model (${device}). First time downloads ~tens of MB…`,
             );
@@ -276,7 +287,10 @@
           // the transcript live. Windows overlap by `overlap` seconds so a word near a
           // boundary is captured whole by exactly one window — the one whose
           // non-overlap region contains the word's start.
-          const winLen = 10,
+          // 30s windows match Whisper's native context length — the encoder always
+          // processes a full 30s mel spectrogram regardless of input length, so smaller
+          // windows waste encoder work without any benefit.
+          const winLen = 30,
             overlap = 2,
             step = winLen - overlap;
           const numWindows = Math.max(
@@ -645,11 +659,9 @@
       }
 
       // ---- Init ---------------------------------------------------------
-      if (!webgpuAvailable) {
-        setStatus(
-          "WebGPU not available — using the WASM backend (slower but works).",
-        );
-      }
+      setStatus(webgpuAvailable
+        ? "WebGPU ready — transcription will be fast."
+        : "⚠️ WebGPU unavailable — using WASM (3-5× slower than real-time). For best speed use Chrome or Edge.");
     </script>
   </body>
 </html>
