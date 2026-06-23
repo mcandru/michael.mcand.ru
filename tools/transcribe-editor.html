@@ -109,8 +109,8 @@
             <label class="opt">
                 Model:
                 <select id="model-select">
-                    <option value="onnx-community/whisper-base" selected>base (~80MB, better)</option>
-                    <option value="onnx-community/whisper-tiny">tiny (~40MB, faster)</option>
+                    <option value="onnx-community/whisper-base_timestamped" selected>base · multilingual (better)</option>
+                    <option value="onnx-community/whisper-tiny.en_timestamped">tiny · English-only (faster)</option>
                 </select>
             </label>
         </div>
@@ -149,6 +149,12 @@
         const keptInfo = document.getElementById('kept-info');
 
         const webgpuAvailable = 'gpu' in navigator;
+
+        // Per-device quantisation. The _timestamped exports keep the encoder in fp32 and
+        // quantise the decoder; q4 fits WebGPU memory, q8 is the WASM-friendly choice.
+        const DTYPE = webgpuAvailable
+            ? { encoder_model: 'fp32', decoder_model_merged: 'q4' }
+            : { encoder_model: 'fp32', decoder_model_merged: 'q8' };
 
         // State
         let sourceBuffer = null;   // decoded AudioBuffer of the upload (full quality, for editing)
@@ -218,6 +224,7 @@
                     setStatus(`Loading model (${device}). First time downloads ~tens of MB…`);
                     transcriber = await pipeline('automatic-speech-recognition', modelId, {
                         device,
+                        dtype: DTYPE,
                         progress_callback: (p) => {
                             if (p.status === 'progress' && p.total) {
                                 showProgress(p.loaded / p.total);
