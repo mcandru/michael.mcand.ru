@@ -83,9 +83,13 @@
         background: #ffe9a8;
       }
       /* Blinking cursor bar shown before the cursor word */
-      @keyframes blink { 50% { opacity: 0; } }
+      @keyframes blink {
+        50% {
+          opacity: 0;
+        }
+      }
       .word.cursor::before {
-        content: '';
+        content: "";
         display: inline-block;
         width: 2px;
         height: 0.85em;
@@ -109,17 +113,22 @@
     <div class="container">
       <h1>🎙️ Transcribe &amp; Edit Audio</h1>
       <p class="intro">
-        Upload audio, transcribe it via the OpenAI API, then delete words to
-        cut them out of the audio. Your API key stays in your browser and
-        audio is sent only to OpenAI.
+        Upload audio, transcribe it via the OpenAI Speech-to-Text API, then
+        delete words to cut them out of the audio. Your API key stays in your
+        browser and audio is sent only to OpenAI.
       </p>
 
       <div class="controls">
         <input type="file" id="file-input" accept="audio/*" />
         <label class="opt">
           API key:
-          <input type="password" id="apikey-input" placeholder="sk-…" size="24" />
-          <span style="font-size:11px;color:#999"> (stored in browser)</span>
+          <input
+            type="password"
+            id="apikey-input"
+            placeholder="sk-…"
+            size="24"
+          />
+          <span style="font-size: 11px; color: #999"> (stored in browser)</span>
         </label>
       </div>
 
@@ -151,13 +160,13 @@
       const keptInfo = document.getElementById("kept-info");
 
       // State
-      let sourceBuffer = null;   // decoded AudioBuffer of the upload (full quality, for editing)
-      let words = [];            // [{ text, start, end, deleted }] — single source of truth
-      let cursorWordIdx = null;  // index into words[] for the playback cursor
+      let sourceBuffer = null; // decoded AudioBuffer of the upload (full quality, for editing)
+      let words = []; // [{ text, start, end, deleted }] — single source of truth
+      let cursorWordIdx = null; // index into words[] for the playback cursor
       let audioCtx = null;
       let activeSource = null;
       let playRaf = null;
-      let playOffset = 0;        // edited-buffer start time for the current playback
+      let playOffset = 0; // edited-buffer start time for the current playback
 
       function getAudioCtx() {
         if (!audioCtx)
@@ -165,7 +174,9 @@
         return audioCtx;
       }
 
-      function setStatus(msg) { statusEl.textContent = msg; }
+      function setStatus(msg) {
+        statusEl.textContent = msg;
+      }
 
       function showProgress(frac) {
         progressWrap.style.display = "block";
@@ -191,12 +202,18 @@
         setStatus("Decoding audio…");
         try {
           const arrayBuffer = await file.arrayBuffer();
-          sourceBuffer = await getAudioCtx().decodeAudioData(arrayBuffer.slice(0));
-          setStatus(`Loaded ${sourceBuffer.duration.toFixed(1)}s. Click "Transcribe" to begin.`);
+          sourceBuffer = await getAudioCtx().decodeAudioData(
+            arrayBuffer.slice(0),
+          );
+          setStatus(
+            `Loaded ${sourceBuffer.duration.toFixed(1)}s. Click "Transcribe" to begin.`,
+          );
           transcribeBtn.disabled = false;
         } catch (err) {
           console.error(err);
-          setStatus("Could not decode that file. Try a different audio format.");
+          setStatus(
+            "Could not decode that file. Try a different audio format.",
+          );
           sourceBuffer = null;
         }
       });
@@ -205,7 +222,10 @@
       transcribeBtn.addEventListener("click", async () => {
         if (!sourceBuffer) return;
         const apiKey = apikeyInput.value.trim();
-        if (!apiKey) { setStatus("Enter an OpenAI API key first."); return; }
+        if (!apiKey) {
+          setStatus("Enter an OpenAI API key first.");
+          return;
+        }
         localStorage.setItem("oai_key", apiKey);
 
         transcribeBtn.disabled = true;
@@ -223,7 +243,9 @@
             setStatus("No speech detected. Try another clip.");
           } else {
             renderTranscript();
-            setStatus("Done. Click a word to seek; press Delete/Backspace to remove it.");
+            setStatus(
+              "Done. Click a word to seek; press Delete/Backspace to remove it.",
+            );
             playBtn.disabled = false;
             exportBtn.disabled = false;
           }
@@ -279,14 +301,19 @@
         form.append("response_format", "verbose_json");
         form.append("timestamp_granularities[]", "word");
 
-        const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${apiKey}` },
-          body: form,
-        });
+        const res = await fetch(
+          "https://api.openai.com/v1/audio/transcriptions",
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${apiKey}` },
+            body: form,
+          },
+        );
         if (!res.ok) {
           let msg = res.statusText;
-          try { msg = (await res.json()).error?.message || msg; } catch {}
+          try {
+            msg = (await res.json()).error?.message || msg;
+          } catch {}
           throw new Error(`OpenAI API error: ${msg}`);
         }
         const data = await res.json();
@@ -312,7 +339,7 @@
 
         // Helper: strip everything except letters, digits and apostrophes so
         // "Hello," and "hello" both normalise to "hello".
-        const bare = s => s.toLowerCase().replace(/[^a-z0-9']/g, "");
+        const bare = (s) => s.toLowerCase().replace(/[^a-z0-9']/g, "");
 
         // Fast path: same token count → 1-to-1 zip.
         if (textTokens.length === apiWords.length) {
@@ -332,7 +359,11 @@
           let skipped = "";
           while (ti < textTokens.length) {
             const b = bare(textTokens[ti]);
-            if (!b) { skipped += textTokens[ti]; ti++; continue; } // punctuation-only
+            if (!b) {
+              skipped += textTokens[ti];
+              ti++;
+              continue;
+            } // punctuation-only
             if (b === target || b.startsWith(target) || target.startsWith(b)) {
               display = skipped ? skipped + textTokens[ti] : textTokens[ti];
               ti++;
@@ -340,7 +371,8 @@
               break;
             }
             // Mismatch — skip this text token (it may be an extra word not in apiWords).
-            if (result.length > 0) result[result.length - 1].display += " " + textTokens[ti];
+            if (result.length > 0)
+              result[result.length - 1].display += " " + textTokens[ti];
             ti++;
           }
           result.push({ ...apiWords[wi], display });
@@ -350,9 +382,15 @@
 
       function sliceAudioBuffer(buf, startSample, endSample) {
         const len = endSample - startSample;
-        const out = getAudioCtx().createBuffer(buf.numberOfChannels, len, buf.sampleRate);
+        const out = getAudioCtx().createBuffer(
+          buf.numberOfChannels,
+          len,
+          buf.sampleRate,
+        );
         for (let c = 0; c < buf.numberOfChannels; c++)
-          out.getChannelData(c).set(buf.getChannelData(c).subarray(startSample, endSample));
+          out
+            .getChannelData(c)
+            .set(buf.getChannelData(c).subarray(startSample, endSample));
         return out;
       }
 
@@ -382,10 +420,13 @@
       }
 
       function applyCursorClass() {
-        transcriptEl.querySelectorAll(".word.cursor")
-          .forEach(s => s.classList.remove("cursor"));
+        transcriptEl
+          .querySelectorAll(".word.cursor")
+          .forEach((s) => s.classList.remove("cursor"));
         if (cursorWordIdx === null) return;
-        const span = transcriptEl.querySelector(`.word[data-index="${cursorWordIdx}"]`);
+        const span = transcriptEl.querySelector(
+          `.word[data-index="${cursorWordIdx}"]`,
+        );
         if (span) span.classList.add("cursor");
       }
 
@@ -395,14 +436,17 @@
         // If cursor word is deleted, advance to the next non-deleted word.
         let origT = null;
         for (let i = cursorWordIdx; i < words.length; i++) {
-          if (!words[i].deleted) { origT = words[i].start; break; }
+          if (!words[i].deleted) {
+            origT = words[i].start;
+            break;
+          }
         }
         if (origT === null) return 0;
 
         const intervals = keptIntervals();
         let acc = 0;
         for (const [a, b] of intervals) {
-          if (origT <= a) return acc;           // cursor is before this interval
+          if (origT <= a) return acc; // cursor is before this interval
           if (origT < b) return acc + (origT - a); // cursor is within this interval
           acc += b - a;
         }
@@ -413,8 +457,7 @@
         const intervals = keptIntervals();
         const kept = intervals.reduce((s, [a, b]) => s + (b - a), 0);
         const deletedCount = words.filter((w) => w.deleted).length;
-        keptInfo.textContent =
-          `${deletedCount} word(s) deleted — edited length ≈ ${kept.toFixed(1)}s`;
+        keptInfo.textContent = `${deletedCount} word(s) deleted — edited length ≈ ${kept.toFixed(1)}s`;
       }
 
       // ---- Audio editing ------------------------------------------------
@@ -424,7 +467,8 @@
       // within a run of kept words are preserved untouched.
       function keptIntervals() {
         const intervals = [];
-        let runStart = null, runEnd = null;
+        let runStart = null,
+          runEnd = null;
         for (const w of words) {
           if (!w.deleted) {
             if (runStart === null) runStart = w.start;
@@ -441,12 +485,16 @@
       function buildEditedBuffer() {
         const intervals = keptIntervals();
         if (intervals.length === 0) {
-          return getAudioCtx().createBuffer(sourceBuffer.numberOfChannels, 1, sourceBuffer.sampleRate);
+          return getAudioCtx().createBuffer(
+            sourceBuffer.numberOfChannels,
+            1,
+            sourceBuffer.sampleRate,
+          );
         }
 
         const rate = sourceBuffer.sampleRate;
-        const chs  = sourceBuffer.numberOfChannels;
-        const ref  = sourceBuffer.getChannelData(0);
+        const chs = sourceBuffer.numberOfChannels;
+        const ref = sourceBuffer.getChannelData(0);
         // 25ms equal-power crossfade at every cut joint.
         const cf = Math.round(0.025 * rate);
 
@@ -456,7 +504,7 @@
         const ranges = intervals.map(([a, b], idx) => {
           let s = Math.max(0, Math.round(a * rate));
           let e = Math.min(sourceBuffer.length, Math.round(b * rate));
-          if (idx > 0)                    s = findSilenceSample(ref, s, rate);
+          if (idx > 0) s = findSilenceSample(ref, s, rate);
           if (idx < intervals.length - 1) e = findSilenceSample(ref, e, rate);
           return [s, Math.max(s + 1, e)];
         });
@@ -464,9 +512,9 @@
         // True crossfade: at each join the last cf samples of segment A and
         // first cf samples of segment B overlap and are mixed together, so the
         // output is shorter by cf per join.
-        const numJoins  = ranges.length - 1;
-        const rawTotal  = ranges.reduce((sum, [s, e]) => sum + (e - s), 0);
-        const total     = Math.max(1, rawTotal - numJoins * cf);
+        const numJoins = ranges.length - 1;
+        const rawTotal = ranges.reduce((sum, [s, e]) => sum + (e - s), 0);
+        const total = Math.max(1, rawTotal - numJoins * cf);
 
         const ctx = getAudioCtx();
         const out = ctx.createBuffer(chs, total, rate);
@@ -478,31 +526,34 @@
 
           for (let ri = 0; ri < ranges.length; ri++) {
             const [s, e] = ranges[ri];
-            const len    = e - s;
+            const len = e - s;
             const hasPrev = ri > 0;
             const hasNext = ri < ranges.length - 1;
 
             // Cap fade lengths so they never exceed half the segment.
-            const fadeIn  = hasPrev ? Math.min(cf, Math.floor(len / 2)) : 0;
-            const fadeOut = hasNext ? Math.min(cf, Math.floor((len - fadeIn) / 2)) : 0;
+            const fadeIn = hasPrev ? Math.min(cf, Math.floor(len / 2)) : 0;
+            const fadeOut = hasNext
+              ? Math.min(cf, Math.floor((len - fadeIn) / 2))
+              : 0;
             const straight = len - fadeIn - fadeOut;
 
             // Fade-in: ADD on top of the fade-out the previous segment already
             // wrote here — this is what makes it a true mix rather than a gap.
             for (let i = 0; i < fadeIn; i++) {
-              const g = Math.sin((i / cf) * Math.PI / 2); // equal-power 0→1
+              const g = Math.sin(((i / cf) * Math.PI) / 2); // equal-power 0→1
               dst[outPos + i] += src[s + i] * g;
             }
             outPos += fadeIn;
 
             // Straight copy — no modification.
-            for (let i = 0; i < straight; i++) dst[outPos + i] = src[s + fadeIn + i];
+            for (let i = 0; i < straight; i++)
+              dst[outPos + i] = src[s + fadeIn + i];
             outPos += straight;
 
             // Fade-out: write values but do NOT advance outPos — the next
             // segment's fade-in will add to these same positions.
             for (let i = 0; i < fadeOut; i++) {
-              const g = Math.cos((i / cf) * Math.PI / 2); // equal-power 1→0
+              const g = Math.cos(((i / cf) * Math.PI) / 2); // equal-power 1→0
               dst[outPos + i] = src[s + fadeIn + straight + i] * g;
             }
             // Only advance past the fade-out on the last segment (no overlap needed).
@@ -515,16 +566,23 @@
       // Find the center of the lowest-RMS 8ms frame within ±100ms of targetSample.
       // Speech silence is far more reliably detected by energy than by zero-crossings.
       function findSilenceSample(data, targetSample, rate) {
-        const searchSamples = Math.round(0.100 * rate);
-        const frameSamples  = Math.max(1, Math.round(0.008 * rate));
-        const hop           = Math.max(1, frameSamples >> 1);
+        const searchSamples = Math.round(0.1 * rate);
+        const frameSamples = Math.max(1, Math.round(0.008 * rate));
+        const hop = Math.max(1, frameSamples >> 1);
         const lo = Math.max(0, targetSample - searchSamples);
-        const hi = Math.min(data.length - frameSamples, targetSample + searchSamples);
-        let best = targetSample, bestE = Infinity;
+        const hi = Math.min(
+          data.length - frameSamples,
+          targetSample + searchSamples,
+        );
+        let best = targetSample,
+          bestE = Infinity;
         for (let s = lo; s < hi; s += hop) {
           let e = 0;
           for (let i = 0; i < frameSamples; i++) e += data[s + i] ** 2;
-          if (e < bestE) { bestE = e; best = s + (frameSamples >> 1); }
+          if (e < bestE) {
+            bestE = e;
+            best = s + (frameSamples >> 1);
+          }
         }
         return Math.max(0, Math.min(data.length - 1, best));
       }
@@ -570,16 +628,24 @@
 
         const tick = () => {
           const t = playOffset + (ctx.currentTime - startTime);
-          if (t >= totalDur) { stopPlayback(); return; }
+          if (t >= totalDur) {
+            stopPlayback();
+            return;
+          }
           let origT = null;
           for (const [es, ee, oa] of map) {
-            if (t >= es && t <= ee) { origT = oa + (t - es); break; }
+            if (t >= es && t <= ee) {
+              origT = oa + (t - es);
+              break;
+            }
           }
           highlightAtTime(origT, keptWords);
           playRaf = requestAnimationFrame(tick);
         };
         playRaf = requestAnimationFrame(tick);
-        node.onended = () => { if (activeSource === node) stopPlayback(); };
+        node.onended = () => {
+          if (activeSource === node) stopPlayback();
+        };
       }
 
       function highlightAtTime(origT, keptWords) {
@@ -599,7 +665,8 @@
       }
 
       function clearHighlight() {
-        transcriptEl.querySelectorAll(".word.playing")
+        transcriptEl
+          .querySelectorAll(".word.playing")
           .forEach((s) => s.classList.remove("playing"));
       }
 
@@ -607,10 +674,16 @@
 
       function stopPlayback(keepCursor = false) {
         if (activeSource) {
-          try { activeSource.onended = null; activeSource.stop(); } catch (e) {}
+          try {
+            activeSource.onended = null;
+            activeSource.stop();
+          } catch (e) {}
           activeSource = null;
         }
-        if (playRaf) { cancelAnimationFrame(playRaf); playRaf = null; }
+        if (playRaf) {
+          cancelAnimationFrame(playRaf);
+          playRaf = null;
+        }
         clearHighlight();
         stopBtn.disabled = true;
         if (words.length) playBtn.disabled = false;
@@ -628,8 +701,11 @@
         if (cursorWordIdx === null) return;
         e.preventDefault();
         words[cursorWordIdx].deleted = !words[cursorWordIdx].deleted;
-        const span = transcriptEl.querySelector(`.word[data-index="${cursorWordIdx}"]`);
-        if (span) span.classList.toggle("deleted", words[cursorWordIdx].deleted);
+        const span = transcriptEl.querySelector(
+          `.word[data-index="${cursorWordIdx}"]`,
+        );
+        if (span)
+          span.classList.toggle("deleted", words[cursorWordIdx].deleted);
         // Advance cursor to the next word after a delete so repeated presses flow forward.
         if (words[cursorWordIdx].deleted && cursorWordIdx < words.length - 1) {
           cursorWordIdx++;
@@ -646,7 +722,9 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         const base =
-          (fileInput.files[0] && fileInput.files[0].name.replace(/\.[^.]+$/, "")) || "audio";
+          (fileInput.files[0] &&
+            fileInput.files[0].name.replace(/\.[^.]+$/, "")) ||
+          "audio";
         a.href = url;
         a.download = base + "-edited.wav";
         document.body.appendChild(a);
@@ -666,19 +744,20 @@
         const view = new DataView(ab);
 
         const writeStr = (off, str) => {
-          for (let i = 0; i < str.length; i++) view.setUint8(off + i, str.charCodeAt(i));
+          for (let i = 0; i < str.length; i++)
+            view.setUint8(off + i, str.charCodeAt(i));
         };
         writeStr(0, "RIFF");
         view.setUint32(4, 36 + dataSize, true);
         writeStr(8, "WAVE");
         writeStr(12, "fmt ");
         view.setUint32(16, 16, true);
-        view.setUint16(20, 1, true);   // PCM
+        view.setUint16(20, 1, true); // PCM
         view.setUint16(22, numCh, true);
         view.setUint32(24, rate, true);
         view.setUint32(28, rate * blockAlign, true);
         view.setUint16(32, blockAlign, true);
-        view.setUint16(34, 16, true);  // bits per sample
+        view.setUint16(34, 16, true); // bits per sample
         writeStr(36, "data");
         view.setUint32(40, dataSize, true);
 
@@ -701,7 +780,9 @@
       apikeyInput.addEventListener("change", () => {
         localStorage.setItem("oai_key", apikeyInput.value.trim());
       });
-      setStatus("Enter your OpenAI API key, upload a file, then click Transcribe.");
+      setStatus(
+        "Enter your OpenAI API key, upload a file, then click Transcribe.",
+      );
     </script>
   </body>
 </html>
