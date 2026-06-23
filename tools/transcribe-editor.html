@@ -109,8 +109,8 @@
             <label class="opt">
                 Model:
                 <select id="model-select">
-                    <option value="onnx-community/whisper-base_timestamped" selected>base · multilingual (better)</option>
-                    <option value="onnx-community/whisper-tiny.en_timestamped">tiny · English-only (faster)</option>
+                    <option value="onnx-community/whisper-base_timestamped" selected>base · multilingual · best quality</option>
+                    <option value="onnx-community/whisper-tiny.en_timestamped">tiny · English-only · ~3-5× faster</option>
                 </select>
             </label>
         </div>
@@ -181,6 +181,12 @@
             progressBar.style.width = '0%';
         }
 
+        function fmtDur(secs) {
+            secs = Math.max(0, Math.round(secs));
+            const m = Math.floor(secs / 60), s = secs % 60;
+            return m > 0 ? `${m}m ${s}s` : `${s}s`;
+        }
+
         // ---- File load ----------------------------------------------------
         fileInput.addEventListener('change', async () => {
             stopPlayback();
@@ -237,26 +243,58 @@
                     loadedModelId = modelId;
                 }
                 hideProgress();
-                setStatus('Transcribing… (this can take a moment)');
 
                 // Whisper wants 16kHz mono Float32. Downmix + resample ourselves.
                 const audio = toMono16k(sourceBuffer);
+                const RATE = 16000;
+                const totalDur = audio.length / RATE;
+                setStatus('Transcribing…');
 
-                const output = await transcriber(audio, {
-                    return_timestamps: 'word',
-                    chunk_length_s: 30,
-                    stride_length_s: 5,
-                });
+                // Transcribe in sequential windows so we can show real progress and grow
+                // the transcript live. Windows overlap by `overlap` seconds so a word near a
+                // boundary is captured whole by exactly one window — the one whose
+                // non-overlap region contains the word's start.
+                const winLen = 30, overlap = 2, step = winLen - overlap;
+                const numWindows = Math.max(1, Math.ceil((totalDur - overlap) / step));
+                words = [];
+                let lastEnd = 0;
+                const t0 = performance.now();
+                showProgress(0);
 
-                words = (output.chunks || [])
-                    .filter(c => c.timestamp && c.timestamp[0] != null && c.timestamp[1] != null)
-                    .map(c => ({
-                        text: c.text,
-                        start: c.timestamp[0],
-                        end: c.timestamp[1],
-                        deleted: false,
-                    }));
+                for (let w = 0; w < numWindows; w++) {
+                    const winStart = w * step;
+                    const s = Math.floor(winStart * RATE);
+                    const e = Math.min(audio.length, Math.floor((winStart + winLen) * RATE));
+                    if (e <= s) break;
+                    const slice = audio.subarray(s, e); // view, no copy
 
+                    const out = await transcriber(slice, {
+                        return_timestamps: 'word',
+                        chunk_length_s: 30,
+                    });
+
+                    const cutoff = (w === numWindows - 1) ? Infinity : winStart + step;
+                    for (const c of (out.chunks || [])) {
+                        if (!c.timestamp || c.timestamp[0] == null || c.timestamp[1] == null) continue;
+                        const start = c.timestamp[0] + winStart;
+                        const end = c.timestamp[1] + winStart;
+                        if (start >= cutoff) continue;        // belongs to the next window
+                        if (start < lastEnd - 0.1) continue;  // safety dedupe of overlap
+                        words.push({ text: c.text, start, end, deleted: false });
+                        lastEnd = Math.max(lastEnd, end);
+                    }
+
+                    renderTranscript(); // live growth
+                    const frac = (w + 1) / numWindows;
+                    showProgress(frac);
+                    const elapsed = (performance.now() - t0) / 1000;
+                    const eta = frac > 0 ? elapsed / frac - elapsed : 0;
+                    setStatus(`Transcribing… ${Math.round(frac * 100)}%` +
+                        (w < numWindows - 1 ? ` — about ${fmtDur(eta)} left` : ''));
+                    await new Promise(r => setTimeout(r)); // let the UI repaint
+                }
+
+                hideProgress();
                 if (words.length === 0) {
                     setStatus('No speech detected. Try another clip.');
                 } else {
