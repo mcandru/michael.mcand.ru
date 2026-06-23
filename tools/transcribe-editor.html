@@ -87,9 +87,6 @@
         color: #777;
         text-align: center;
       }
-      .hidden {
-        display: none;
-      }
       label.opt {
         font-size: 13px;
         color: #555;
@@ -100,36 +97,17 @@
     <div class="container">
       <h1>🎙️ Transcribe &amp; Edit Audio</h1>
       <p class="intro">
-        Upload audio, transcribe it to text with word-level timestamps, then
-        delete words to cut them out of the audio. Everything &mdash; including
-        the speech-to-text model &mdash; runs entirely in your browser. Nothing
-        is uploaded.
+        Upload audio, transcribe it via the OpenAI API, then delete words to
+        cut them out of the audio. Your API key stays in your browser and
+        audio is sent only to OpenAI.
       </p>
 
       <div class="controls">
         <input type="file" id="file-input" accept="audio/*" />
         <label class="opt">
-          Method:
-          <select id="method-select">
-            <option value="local">Local (in-browser)</option>
-            <option value="openai">OpenAI API (faster)</option>
-          </select>
-        </label>
-        <label class="opt" id="model-label">
-          Model:
-          <select id="model-select">
-            <option value="onnx-community/whisper-base_timestamped" selected>
-              base · multilingual · best quality
-            </option>
-            <option value="onnx-community/whisper-tiny.en_timestamped">
-              tiny · English-only · ~3-5× faster
-            </option>
-          </select>
-        </label>
-        <label class="opt hidden" id="apikey-label">
           API key:
           <input type="password" id="apikey-input" placeholder="sk-…" size="24" />
-          <span style="font-size:11px;color:#999"> (stored locally in browser)</span>
+          <span style="font-size:11px;color:#999"> (stored in browser)</span>
         </label>
       </div>
 
@@ -148,19 +126,7 @@
     </div>
 
     <script type="module">
-      import {
-        pipeline,
-        env,
-      } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.6/dist/transformers.min.js";
-
-      // Allow remote model download from the Hugging Face hub; disable local model lookup.
-      env.allowLocalModels = false;
-
       const fileInput = document.getElementById("file-input");
-      const methodSelect = document.getElementById("method-select");
-      const modelLabel = document.getElementById("model-label");
-      const modelSelect = document.getElementById("model-select");
-      const apikeyLabel = document.getElementById("apikey-label");
       const apikeyInput = document.getElementById("apikey-input");
       const transcribeBtn = document.getElementById("transcribe-btn");
       const playBtn = document.getElementById("play-btn");
@@ -172,33 +138,11 @@
       const transcriptEl = document.getElementById("transcript");
       const keptInfo = document.getElementById("kept-info");
 
-      // Async check: 'gpu' in navigator only means the API exists; requestAdapter()
-      // confirms the browser can actually hand us a GPU. Falls back to wasm if not.
-      async function detectDevice() {
-        if (!("gpu" in navigator)) return "wasm";
-        try {
-          const adapter = await navigator.gpu.requestAdapter();
-          return adapter ? "webgpu" : "wasm";
-        } catch {
-          return "wasm";
-        }
-      }
-      const device = await detectDevice();
-      const webgpuAvailable = device === "webgpu";
-
-      // Per-device quantisation. The _timestamped exports keep the encoder in fp32 and
-      // quantise the decoder; q4 fits WebGPU memory, q8 is the WASM-friendly choice.
-      const DTYPE = webgpuAvailable
-        ? { encoder_model: "fp32", decoder_model_merged: "q4" }
-        : { encoder_model: "fp32", decoder_model_merged: "q8" };
-
       // State
       let sourceBuffer = null; // decoded AudioBuffer of the upload (full quality, for editing)
-      let words = []; // [{ text, start, end, deleted }] — the single source of truth
-      let transcriber = null; // cached pipeline
-      let loadedModelId = null; // which model the cached pipeline holds
+      let words = [];          // [{ text, start, end, deleted }] — single source of truth
       let audioCtx = null;
-      let activeSource = null; // currently playing AudioBufferSourceNode
+      let activeSource = null;
       let playRaf = null;
 
       function getAudioCtx() {
@@ -207,9 +151,7 @@
         return audioCtx;
       }
 
-      function setStatus(msg) {
-        statusEl.textContent = msg;
-      }
+      function setStatus(msg) { statusEl.textContent = msg; }
 
       function showProgress(frac) {
         progressWrap.style.display = "block";
@@ -218,13 +160,6 @@
       function hideProgress() {
         progressWrap.style.display = "none";
         progressBar.style.width = "0%";
-      }
-
-      function fmtDur(secs) {
-        secs = Math.max(0, Math.round(secs));
-        const m = Math.floor(secs / 60),
-          s = secs % 60;
-        return m > 0 ? `${m}m ${s}s` : `${s}s`;
       }
 
       // ---- File load ----------------------------------------------------
@@ -242,18 +177,12 @@
         setStatus("Decoding audio…");
         try {
           const arrayBuffer = await file.arrayBuffer();
-          // decodeAudioData detaches the buffer, so decode from a copy.
-          sourceBuffer = await getAudioCtx().decodeAudioData(
-            arrayBuffer.slice(0),
-          );
-          const dur = sourceBuffer.duration.toFixed(1);
-          setStatus(`Loaded ${dur}s of audio. Click "Transcribe" to begin.`);
+          sourceBuffer = await getAudioCtx().decodeAudioData(arrayBuffer.slice(0));
+          setStatus(`Loaded ${sourceBuffer.duration.toFixed(1)}s. Click "Transcribe" to begin.`);
           transcribeBtn.disabled = false;
         } catch (err) {
           console.error(err);
-          setStatus(
-            "Could not decode that file. Try a different audio format.",
-          );
+          setStatus("Could not decode that file. Try a different audio format.");
           sourceBuffer = null;
         }
       });
@@ -261,24 +190,19 @@
       // ---- Transcription ------------------------------------------------
       transcribeBtn.addEventListener("click", async () => {
         if (!sourceBuffer) return;
+        const apiKey = apikeyInput.value.trim();
+        if (!apiKey) { setStatus("Enter an OpenAI API key first."); return; }
+        localStorage.setItem("oai_key", apiKey);
+
         transcribeBtn.disabled = true;
         fileInput.disabled = true;
-        methodSelect.disabled = true;
-        modelSelect.disabled = true;
         apikeyInput.disabled = true;
         stopPlayback();
         words = [];
+        transcriptEl.innerHTML = "";
 
         try {
-          if (methodSelect.value === "openai") {
-            const apiKey = apikeyInput.value.trim();
-            if (!apiKey) throw new Error("Enter an OpenAI API key above.");
-            localStorage.setItem("oai_key", apiKey);
-            await transcribeOpenAI(apiKey);
-          } else {
-            await transcribeLocal();
-          }
-
+          await transcribeOpenAI(apiKey);
           hideProgress();
           if (words.length === 0) {
             setStatus("No speech detected. Try another clip.");
@@ -295,390 +219,23 @@
           hideProgress();
           transcribeBtn.disabled = false;
           fileInput.disabled = false;
-          methodSelect.disabled = false;
-          modelSelect.disabled = false;
           apikeyInput.disabled = false;
         }
       });
 
-      async function transcribeLocal() {
-        const modelId = modelSelect.value;
-        if (!transcriber || loadedModelId !== modelId) {
-          transcriber = null;
-          setStatus(`Loading model (${device}). First time downloads ~tens of MB…`);
-          transcriber = await pipeline("automatic-speech-recognition", modelId, {
-            device,
-            dtype: DTYPE,
-            progress_callback: (p) => {
-              if (p.status === "progress" && p.total) {
-                showProgress(p.loaded / p.total);
-                setStatus(`Downloading ${p.file || "model"}…`);
-              } else if (p.status === "ready") {
-                hideProgress();
-              }
-            },
-          });
-          loadedModelId = modelId;
-        }
-        hideProgress();
-
-        // Whisper wants 16kHz mono Float32. Downmix + resample ourselves.
-        const audio = toMono16k(sourceBuffer);
-        const RATE = 16000;
-        const totalDur = audio.length / RATE;
-        setStatus("Transcribing…");
-
-        // Transcribe in sequential 30s windows with 2s overlap so a word near a
-        // boundary lands whole in exactly one window. 30s matches Whisper's native
-        // context length — the encoder always processes a full 30s mel spectrogram
-        // regardless of input length, so smaller windows waste encoder work.
-        const winLen = 30, overlap = 2, step = winLen - overlap;
-        const numWindows = Math.max(1, Math.ceil((totalDur - overlap) / step));
-        let lastEnd = 0;
-        const t0 = performance.now();
-        showProgress(0);
-
-        for (let w = 0; w < numWindows; w++) {
-          const winStart = w * step;
-          const s = Math.floor(winStart * RATE);
-          const e = Math.min(audio.length, Math.floor((winStart + winLen) * RATE));
-          if (e <= s) break;
-          const slice = audio.subarray(s, e); // view, no copy
-
-          const out = await transcriber(slice, {
-            return_timestamps: "word",
-            chunk_length_s: winLen,
-          });
-
-          const cutoff = w === numWindows - 1 ? Infinity : winStart + step;
-          for (const c of out.chunks || []) {
-            if (!c.timestamp || c.timestamp[0] == null || c.timestamp[1] == null) continue;
-            const start = c.timestamp[0] + winStart;
-            const end = c.timestamp[1] + winStart;
-            if (start >= cutoff) continue;
-            if (start < lastEnd - 0.1) continue;
-            words.push({ text: c.text, start, end, deleted: false });
-            lastEnd = Math.max(lastEnd, end);
-          }
-
-          renderTranscript();
-          const frac = (w + 1) / numWindows;
-          showProgress(frac);
-          const elapsed = (performance.now() - t0) / 1000;
-          const eta = frac > 0 ? elapsed / frac - elapsed : 0;
-          setStatus(`Transcribing… ${Math.round(frac * 100)}%` +
-            (w < numWindows - 1 ? ` — about ${fmtDur(eta)} left` : ""));
-          await new Promise((r) => setTimeout(r));
-        }
-      }
-
-      // Downmix to mono and resample to 16kHz, returning a Float32Array.
-      function toMono16k(buffer) {
-        const targetRate = 16000;
-        const chs = buffer.numberOfChannels;
-        const srcLen = buffer.length;
-        // Downmix to mono.
-        const mono = new Float32Array(srcLen);
-        for (let c = 0; c < chs; c++) {
-          const data = buffer.getChannelData(c);
-          for (let i = 0; i < srcLen; i++) mono[i] += data[i] / chs;
-        }
-        if (buffer.sampleRate === targetRate) return mono;
-        // Linear resample.
-        const ratio = buffer.sampleRate / targetRate;
-        const outLen = Math.floor(srcLen / ratio);
-        const out = new Float32Array(outLen);
-        for (let i = 0; i < outLen; i++) {
-          const pos = i * ratio;
-          const idx = Math.floor(pos);
-          const frac = pos - idx;
-          const a = mono[idx] || 0;
-          const b = mono[idx + 1] != null ? mono[idx + 1] : a;
-          out[i] = a + (b - a) * frac;
-        }
-        return out;
-      }
-
-      // ---- Transcript UI ------------------------------------------------
-      function renderTranscript() {
-        transcriptEl.innerHTML = "";
-        words.forEach((w, i) => {
-          const span = document.createElement("span");
-          span.className = "word" + (w.deleted ? " deleted" : "");
-          span.textContent = w.text;
-          span.dataset.index = i;
-          span.addEventListener("click", () => {
-            words[i].deleted = !words[i].deleted;
-            span.classList.toggle("deleted", words[i].deleted);
-            updateKeptInfo();
-          });
-          transcriptEl.appendChild(span);
-        });
-        updateKeptInfo();
-      }
-
-      function updateKeptInfo() {
-        const intervals = keptIntervals();
-        const kept = intervals.reduce((s, [a, b]) => s + (b - a), 0);
-        const deletedCount = words.filter((w) => w.deleted).length;
-        keptInfo.textContent = `${deletedCount} word(s) deleted — edited length ≈ ${kept.toFixed(1)}s`;
-      }
-
-      // ---- Audio editing ------------------------------------------------
-      // Merge kept words into contiguous [start,end] second-intervals.
-      function keptIntervals() {
-        const kept = words.filter((w) => !w.deleted);
-        if (kept.length === 0) return [];
-        const merged = [];
-        const gap = 0.06; // join words within 60ms into one interval
-        let cur = [kept[0].start, kept[0].end];
-        for (let i = 1; i < kept.length; i++) {
-          const w = kept[i];
-          if (w.start - cur[1] <= gap) {
-            cur[1] = Math.max(cur[1], w.end);
-          } else {
-            merged.push(cur);
-            cur = [w.start, w.end];
-          }
-        }
-        merged.push(cur);
-        return merged;
-      }
-
-      // Build a new AudioBuffer containing only the kept intervals, with short
-      // fades at each join to avoid clicks. Cut points are nudged toward the
-      // nearest zero-crossing within a small window.
-      function buildEditedBuffer() {
-        const intervals = keptIntervals();
-        const rate = sourceBuffer.sampleRate;
-        const chs = sourceBuffer.numberOfChannels;
-        const fadeSamples = Math.round(0.005 * rate); // 5ms
-        const searchSamples = Math.round(0.005 * rate);
-
-        // Convert intervals to clamped sample ranges, snapped to zero-crossings.
-        const ref = sourceBuffer.getChannelData(0);
-        const ranges = intervals.map(([a, b]) => {
-          let s = Math.max(0, Math.round(a * rate));
-          let e = Math.min(sourceBuffer.length, Math.round(b * rate));
-          s = snapZeroCross(ref, s, searchSamples);
-          e = snapZeroCross(ref, e, searchSamples);
-          return [s, Math.max(s, e)];
-        });
-
-        const total = ranges.reduce((sum, [s, e]) => sum + (e - s), 0);
-        const ctx = getAudioCtx();
-        const out = ctx.createBuffer(chs, Math.max(1, total), rate);
-
-        for (let c = 0; c < chs; c++) {
-          const src = sourceBuffer.getChannelData(c);
-          const dst = out.getChannelData(c);
-          let offset = 0;
-          for (const [s, e] of ranges) {
-            const len = e - s;
-            for (let i = 0; i < len; i++) dst[offset + i] = src[s + i];
-            // Fade in at the start of this segment and fade out at its end.
-            const f = Math.min(fadeSamples, Math.floor(len / 2));
-            for (let i = 0; i < f; i++) {
-              dst[offset + i] *= i / f;
-              dst[offset + len - 1 - i] *= i / f;
-            }
-            offset += len;
-          }
-        }
-        return out;
-      }
-
-      // Move toward the nearest sample whose sign differs from the previous one.
-      function snapZeroCross(data, idx, window) {
-        const lo = Math.max(1, idx - window);
-        const hi = Math.min(data.length - 1, idx + window);
-        let best = idx,
-          bestDist = Infinity;
-        for (let i = lo; i <= hi; i++) {
-          if (
-            (data[i - 1] <= 0 && data[i] >= 0) ||
-            (data[i - 1] >= 0 && data[i] <= 0)
-          ) {
-            const d = Math.abs(i - idx);
-            if (d < bestDist) {
-              bestDist = d;
-              best = i;
-            }
-          }
-        }
-        return best;
-      }
-
-      // ---- Playback -----------------------------------------------------
-      playBtn.addEventListener("click", () => {
-        if (!sourceBuffer) return;
-        stopPlayback();
-        const edited = buildEditedBuffer();
-        if (edited.length <= 1) {
-          setStatus("Nothing left to play — every word is deleted.");
-          return;
-        }
-        const ctx = getAudioCtx();
-        if (ctx.state === "suspended") ctx.resume();
-        const node = ctx.createBufferSource();
-        node.buffer = edited;
-        node.connect(ctx.destination);
-        node.start();
-        activeSource = node;
-        stopBtn.disabled = false;
-        playBtn.disabled = true;
-
-        // Highlight the currently-playing word by mapping edited-time back to words.
-        const intervals = keptIntervals();
-        const keptWords = words.filter((w) => !w.deleted);
-        const startTime = ctx.currentTime;
-        const fades = []; // cumulative edited-time boundaries per interval
-        let acc = 0;
-        for (const [a, b] of intervals) {
-          fades.push([acc, acc + (b - a), a]);
-          acc += b - a;
-        }
-        const totalDur = acc;
-
-        const tick = () => {
-          const t = ctx.currentTime - startTime;
-          if (t >= totalDur) {
-            stopPlayback();
-            return;
-          }
-          // Find original time for edited time t.
-          let origT = null;
-          for (const [es, ee, oa] of fades) {
-            if (t >= es && t < ee) {
-              origT = oa + (t - es);
-              break;
-            }
-          }
-          highlightAtTime(origT, keptWords);
-          playRaf = requestAnimationFrame(tick);
-        };
-        playRaf = requestAnimationFrame(tick);
-
-        node.onended = () => {
-          if (activeSource === node) stopPlayback();
-        };
-      });
-
-      function highlightAtTime(origT, keptWords) {
-        clearHighlight();
-        if (origT == null) return;
-        const w = keptWords.find((w) => origT >= w.start && origT <= w.end);
-        if (!w) return;
-        const idx = words.indexOf(w);
-        const span = transcriptEl.querySelector(`.word[data-index="${idx}"]`);
-        if (span) span.classList.add("playing");
-      }
-
-      function clearHighlight() {
-        transcriptEl
-          .querySelectorAll(".word.playing")
-          .forEach((s) => s.classList.remove("playing"));
-      }
-
-      stopBtn.addEventListener("click", stopPlayback);
-
-      function stopPlayback() {
-        if (activeSource) {
-          try {
-            activeSource.onended = null;
-            activeSource.stop();
-          } catch (e) {}
-          activeSource = null;
-        }
-        if (playRaf) {
-          cancelAnimationFrame(playRaf);
-          playRaf = null;
-        }
-        clearHighlight();
-        stopBtn.disabled = true;
-        if (words.length) playBtn.disabled = false;
-      }
-
-      // ---- Export -------------------------------------------------------
-      exportBtn.addEventListener("click", () => {
-        if (!sourceBuffer) return;
-        const edited = buildEditedBuffer();
-        const blob = audioBufferToWav(edited);
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        const base =
-          (fileInput.files[0] &&
-            fileInput.files[0].name.replace(/\.[^.]+$/, "")) ||
-          "audio";
-        a.href = url;
-        a.download = base + "-edited.wav";
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-      });
-
-      // Encode an AudioBuffer to a 16-bit PCM WAV Blob.
-      function audioBufferToWav(buffer) {
-        const numCh = buffer.numberOfChannels;
-        const len = buffer.length;
-        const rate = buffer.sampleRate;
-        const bytesPerSample = 2;
-        const blockAlign = numCh * bytesPerSample;
-        const dataSize = len * blockAlign;
-        const ab = new ArrayBuffer(44 + dataSize);
-        const view = new DataView(ab);
-
-        const writeStr = (off, str) => {
-          for (let i = 0; i < str.length; i++)
-            view.setUint8(off + i, str.charCodeAt(i));
-        };
-
-        writeStr(0, "RIFF");
-        view.setUint32(4, 36 + dataSize, true);
-        writeStr(8, "WAVE");
-        writeStr(12, "fmt ");
-        view.setUint32(16, 16, true); // fmt chunk size
-        view.setUint16(20, 1, true); // PCM
-        view.setUint16(22, numCh, true);
-        view.setUint32(24, rate, true);
-        view.setUint32(28, rate * blockAlign, true);
-        view.setUint16(32, blockAlign, true);
-        view.setUint16(34, 16, true); // bits per sample
-        writeStr(36, "data");
-        view.setUint32(40, dataSize, true);
-
-        // Interleave channels.
-        const channels = [];
-        for (let c = 0; c < numCh; c++) channels.push(buffer.getChannelData(c));
-        let off = 44;
-        for (let i = 0; i < len; i++) {
-          for (let c = 0; c < numCh; c++) {
-            let s = Math.max(-1, Math.min(1, channels[c][i]));
-            s = s < 0 ? s * 0x8000 : s * 0x7fff;
-            view.setInt16(off, s, true);
-            off += 2;
-          }
-        }
-        return new Blob([view], { type: "audio/wav" });
-      }
-
       // ---- OpenAI transcription -----------------------------------------
-      // Sends the original file (or WAV chunks if >24 MB) to the Whisper API
-      // and maps the response onto the same words[] format as the local path.
       async function transcribeOpenAI(apiKey) {
         const file = fileInput.files[0];
         const MAX = 24 * 1024 * 1024;
 
         if (file.size <= MAX) {
           setStatus("Sending to OpenAI…");
-          showProgress(0.1);
+          showProgress(0.2);
           const result = await callOpenAIAPI(apiKey, file, 0);
           words.push(...result);
-          renderTranscript();
           showProgress(1);
         } else {
-          // File is too large — split decoded audio into ≤10-min WAV chunks.
+          // File too large — split decoded audio into ≤10-min WAV chunks.
           const CHUNK_S = 600;
           const rate = sourceBuffer.sampleRate;
           const totalSamples = sourceBuffer.length;
@@ -687,13 +244,11 @@
           for (let i = 0; i < numChunks; i++) {
             const s = i * chunkSamples;
             const e = Math.min(totalSamples, s + chunkSamples);
-            const offsetSecs = s / rate;
             const chunkBuf = sliceAudioBuffer(sourceBuffer, s, e);
             const blob = audioBufferToWav(chunkBuf);
-            const eta = null; // unknown for chunked path
             setStatus(`Sending chunk ${i + 1}/${numChunks} to OpenAI…`);
             showProgress((i + 0.5) / numChunks);
-            const result = await callOpenAIAPI(apiKey, blob, offsetSecs);
+            const result = await callOpenAIAPI(apiKey, blob, s / rate);
             words.push(...result);
             renderTranscript();
             showProgress((i + 1) / numChunks);
@@ -731,35 +286,253 @@
       function sliceAudioBuffer(buf, startSample, endSample) {
         const len = endSample - startSample;
         const out = getAudioCtx().createBuffer(buf.numberOfChannels, len, buf.sampleRate);
-        for (let c = 0; c < buf.numberOfChannels; c++) {
+        for (let c = 0; c < buf.numberOfChannels; c++)
           out.getChannelData(c).set(buf.getChannelData(c).subarray(startSample, endSample));
+        return out;
+      }
+
+      // ---- Transcript UI ------------------------------------------------
+      function renderTranscript() {
+        transcriptEl.innerHTML = "";
+        words.forEach((w, i) => {
+          const span = document.createElement("span");
+          span.className = "word" + (w.deleted ? " deleted" : "");
+          span.textContent = w.text;
+          span.dataset.index = i;
+          span.addEventListener("click", () => {
+            words[i].deleted = !words[i].deleted;
+            span.classList.toggle("deleted", words[i].deleted);
+            updateKeptInfo();
+          });
+          transcriptEl.appendChild(span);
+        });
+        updateKeptInfo();
+      }
+
+      function updateKeptInfo() {
+        const intervals = keptIntervals();
+        const kept = intervals.reduce((s, [a, b]) => s + (b - a), 0);
+        const deletedCount = words.filter((w) => w.deleted).length;
+        keptInfo.textContent =
+          `${deletedCount} word(s) deleted — edited length ≈ ${kept.toFixed(1)}s`;
+      }
+
+      // ---- Audio editing ------------------------------------------------
+      // Build kept intervals by walking the word list in order and grouping
+      // consecutive kept words into one interval. A cut is only introduced
+      // where a deleted word sits between two kept words — natural pauses
+      // within a run of kept words are preserved untouched.
+      function keptIntervals() {
+        const intervals = [];
+        let runStart = null, runEnd = null;
+        for (const w of words) {
+          if (!w.deleted) {
+            if (runStart === null) runStart = w.start;
+            runEnd = w.end;
+          } else if (runStart !== null) {
+            intervals.push([runStart, runEnd]);
+            runStart = null;
+          }
+        }
+        if (runStart !== null) intervals.push([runStart, runEnd]);
+        return intervals;
+      }
+
+      function buildEditedBuffer() {
+        const intervals = keptIntervals();
+        const rate = sourceBuffer.sampleRate;
+        const chs = sourceBuffer.numberOfChannels;
+        const fadeSamples = Math.round(0.005 * rate); // 5ms fade at each cut join
+        const searchSamples = Math.round(0.005 * rate);
+
+        const ref = sourceBuffer.getChannelData(0);
+        const ranges = intervals.map(([a, b]) => {
+          let s = Math.max(0, Math.round(a * rate));
+          let e = Math.min(sourceBuffer.length, Math.round(b * rate));
+          s = snapZeroCross(ref, s, searchSamples);
+          e = snapZeroCross(ref, e, searchSamples);
+          return [s, Math.max(s, e)];
+        });
+
+        const total = ranges.reduce((sum, [s, e]) => sum + (e - s), 0);
+        const ctx = getAudioCtx();
+        const out = ctx.createBuffer(chs, Math.max(1, total), rate);
+
+        for (let c = 0; c < chs; c++) {
+          const src = sourceBuffer.getChannelData(c);
+          const dst = out.getChannelData(c);
+          let offset = 0;
+          for (const [s, e] of ranges) {
+            const len = e - s;
+            for (let i = 0; i < len; i++) dst[offset + i] = src[s + i];
+            const f = Math.min(fadeSamples, Math.floor(len / 2));
+            for (let i = 0; i < f; i++) {
+              dst[offset + i] *= i / f;
+              dst[offset + len - 1 - i] *= i / f;
+            }
+            offset += len;
+          }
         }
         return out;
       }
 
+      function snapZeroCross(data, idx, window) {
+        const lo = Math.max(1, idx - window);
+        const hi = Math.min(data.length - 1, idx + window);
+        let best = idx, bestDist = Infinity;
+        for (let i = lo; i <= hi; i++) {
+          if ((data[i - 1] <= 0 && data[i] >= 0) || (data[i - 1] >= 0 && data[i] <= 0)) {
+            const d = Math.abs(i - idx);
+            if (d < bestDist) { bestDist = d; best = i; }
+          }
+        }
+        return best;
+      }
+
+      // ---- Playback -----------------------------------------------------
+      playBtn.addEventListener("click", () => {
+        if (!sourceBuffer) return;
+        stopPlayback();
+        const edited = buildEditedBuffer();
+        if (edited.length <= 1) {
+          setStatus("Nothing left to play — every word is deleted.");
+          return;
+        }
+        const ctx = getAudioCtx();
+        if (ctx.state === "suspended") ctx.resume();
+        const node = ctx.createBufferSource();
+        node.buffer = edited;
+        node.connect(ctx.destination);
+        node.start();
+        activeSource = node;
+        stopBtn.disabled = false;
+        playBtn.disabled = true;
+
+        // Map edited-timeline back to original-timeline for word highlighting.
+        const intervals = keptIntervals();
+        const keptWords = words.filter((w) => !w.deleted);
+        const startTime = ctx.currentTime;
+        // Each entry: [editedStart, editedEnd, origStart]
+        const map = [];
+        let acc = 0;
+        for (const [a, b] of intervals) {
+          map.push([acc, acc + (b - a), a]);
+          acc += b - a;
+        }
+        const totalDur = acc;
+
+        const tick = () => {
+          const t = ctx.currentTime - startTime;
+          if (t >= totalDur) { stopPlayback(); return; }
+          let origT = null;
+          for (const [es, ee, oa] of map) {
+            if (t >= es && t <= ee) { origT = oa + (t - es); break; }
+          }
+          highlightAtTime(origT, keptWords);
+          playRaf = requestAnimationFrame(tick);
+        };
+        playRaf = requestAnimationFrame(tick);
+        node.onended = () => { if (activeSource === node) stopPlayback(); };
+      });
+
+      function highlightAtTime(origT, keptWords) {
+        clearHighlight();
+        if (origT == null) return;
+        // Highlight the last word that has started. This keeps the highlight
+        // steady during natural pauses between words instead of blinking off.
+        let best = null;
+        for (const w of keptWords) {
+          if (w.start <= origT) best = w;
+          else break;
+        }
+        if (!best) return;
+        const idx = words.indexOf(best);
+        const span = transcriptEl.querySelector(`.word[data-index="${idx}"]`);
+        if (span) span.classList.add("playing");
+      }
+
+      function clearHighlight() {
+        transcriptEl.querySelectorAll(".word.playing")
+          .forEach((s) => s.classList.remove("playing"));
+      }
+
+      stopBtn.addEventListener("click", stopPlayback);
+
+      function stopPlayback() {
+        if (activeSource) {
+          try { activeSource.onended = null; activeSource.stop(); } catch (e) {}
+          activeSource = null;
+        }
+        if (playRaf) { cancelAnimationFrame(playRaf); playRaf = null; }
+        clearHighlight();
+        stopBtn.disabled = true;
+        if (words.length) playBtn.disabled = false;
+      }
+
+      // ---- Export -------------------------------------------------------
+      exportBtn.addEventListener("click", () => {
+        if (!sourceBuffer) return;
+        const edited = buildEditedBuffer();
+        const blob = audioBufferToWav(edited);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        const base =
+          (fileInput.files[0] && fileInput.files[0].name.replace(/\.[^.]+$/, "")) || "audio";
+        a.href = url;
+        a.download = base + "-edited.wav";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      });
+
+      // Encode an AudioBuffer to a 16-bit PCM WAV Blob.
+      function audioBufferToWav(buffer) {
+        const numCh = buffer.numberOfChannels;
+        const len = buffer.length;
+        const rate = buffer.sampleRate;
+        const blockAlign = numCh * 2;
+        const dataSize = len * blockAlign;
+        const ab = new ArrayBuffer(44 + dataSize);
+        const view = new DataView(ab);
+
+        const writeStr = (off, str) => {
+          for (let i = 0; i < str.length; i++) view.setUint8(off + i, str.charCodeAt(i));
+        };
+        writeStr(0, "RIFF");
+        view.setUint32(4, 36 + dataSize, true);
+        writeStr(8, "WAVE");
+        writeStr(12, "fmt ");
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true);   // PCM
+        view.setUint16(22, numCh, true);
+        view.setUint32(24, rate, true);
+        view.setUint32(28, rate * blockAlign, true);
+        view.setUint16(32, blockAlign, true);
+        view.setUint16(34, 16, true);  // bits per sample
+        writeStr(36, "data");
+        view.setUint32(40, dataSize, true);
+
+        const channels = [];
+        for (let c = 0; c < numCh; c++) channels.push(buffer.getChannelData(c));
+        let off = 44;
+        for (let i = 0; i < len; i++) {
+          for (let c = 0; c < numCh; c++) {
+            let s = Math.max(-1, Math.min(1, channels[c][i]));
+            s = s < 0 ? s * 0x8000 : s * 0x7fff;
+            view.setInt16(off, s, true);
+            off += 2;
+          }
+        }
+        return new Blob([view], { type: "audio/wav" });
+      }
+
       // ---- Init ---------------------------------------------------------
-      // Restore saved API key if present.
       apikeyInput.value = localStorage.getItem("oai_key") || "";
       apikeyInput.addEventListener("change", () => {
         localStorage.setItem("oai_key", apikeyInput.value.trim());
       });
-
-      // Toggle local vs OpenAI controls.
-      methodSelect.addEventListener("change", () => {
-        const isOpenAI = methodSelect.value === "openai";
-        modelLabel.classList.toggle("hidden", isOpenAI);
-        apikeyLabel.classList.toggle("hidden", !isOpenAI);
-        if (sourceBuffer) transcribeBtn.disabled = false;
-        setStatus(isOpenAI
-          ? "Enter your OpenAI API key above, then click Transcribe."
-          : webgpuAvailable
-            ? "WebGPU ready — transcription will be fast."
-            : "⚠️ WebGPU unavailable — using WASM (3-5× slower). For best speed use Chrome or Edge.");
-      });
-
-      setStatus(webgpuAvailable
-        ? "WebGPU ready — transcription will be fast."
-        : "⚠️ WebGPU unavailable — using WASM (3-5× slower than real-time). For best speed use Chrome or Edge.");
+      setStatus("Enter your OpenAI API key, upload a file, then click Transcribe.");
     </script>
   </body>
 </html>
