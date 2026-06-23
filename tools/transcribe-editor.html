@@ -63,7 +63,7 @@
         min-height: 60px;
       }
       #transcript:empty::before {
-        content: "Your transcript will appear here. Click a word to delete it; click again to restore.";
+        content: "Your transcript will appear here. Click a word to seek; press Delete/Backspace to remove it.";
         color: #aaa;
       }
       .word {
@@ -81,6 +81,18 @@
       }
       .word.playing {
         background: #ffe9a8;
+      }
+      /* Blinking cursor bar shown before the cursor word */
+      @keyframes blink { 50% { opacity: 0; } }
+      .word.cursor::before {
+        content: '';
+        display: inline-block;
+        width: 2px;
+        height: 0.85em;
+        background: #4a90d9;
+        margin-right: 2px;
+        vertical-align: text-bottom;
+        animation: blink 1s step-end infinite;
       }
       .hint {
         font-size: 13px;
@@ -139,11 +151,13 @@
       const keptInfo = document.getElementById("kept-info");
 
       // State
-      let sourceBuffer = null; // decoded AudioBuffer of the upload (full quality, for editing)
-      let words = [];          // [{ text, start, end, deleted }] — single source of truth
+      let sourceBuffer = null;   // decoded AudioBuffer of the upload (full quality, for editing)
+      let words = [];            // [{ text, start, end, deleted }] — single source of truth
+      let cursorWordIdx = null;  // index into words[] for the playback cursor
       let audioCtx = null;
       let activeSource = null;
       let playRaf = null;
+      let playOffset = 0;        // edited-buffer start time for the current playback
 
       function getAudioCtx() {
         if (!audioCtx)
@@ -199,6 +213,7 @@
         apikeyInput.disabled = true;
         stopPlayback();
         words = [];
+        cursorWordIdx = null;
         transcriptEl.innerHTML = "";
 
         try {
@@ -208,7 +223,7 @@
             setStatus("No speech detected. Try another clip.");
           } else {
             renderTranscript();
-            setStatus("Done. Click words to delete them, then preview or export.");
+            setStatus("Done. Click a word to seek; press Delete/Backspace to remove it.");
             playBtn.disabled = false;
             exportBtn.disabled = false;
           }
@@ -299,14 +314,49 @@
           span.className = "word" + (w.deleted ? " deleted" : "");
           span.textContent = w.text;
           span.dataset.index = i;
-          span.addEventListener("click", () => {
-            words[i].deleted = !words[i].deleted;
-            span.classList.toggle("deleted", words[i].deleted);
-            updateKeptInfo();
-          });
+          span.addEventListener("click", () => setCursor(i));
           transcriptEl.appendChild(span);
         });
+        if (cursorWordIdx !== null) applyCursorClass();
         updateKeptInfo();
+      }
+
+      function setCursor(idx) {
+        cursorWordIdx = idx;
+        applyCursorClass();
+        // If already playing, seek to the new position.
+        if (activeSource) {
+          stopPlayback(/* keepCursor */ true);
+          startPlayback();
+        }
+      }
+
+      function applyCursorClass() {
+        transcriptEl.querySelectorAll(".word.cursor")
+          .forEach(s => s.classList.remove("cursor"));
+        if (cursorWordIdx === null) return;
+        const span = transcriptEl.querySelector(`.word[data-index="${cursorWordIdx}"]`);
+        if (span) span.classList.add("cursor");
+      }
+
+      // Map the cursor word's original start time to a position in the edited buffer.
+      function editedOffsetForCursor() {
+        if (cursorWordIdx === null) return 0;
+        // If cursor word is deleted, advance to the next non-deleted word.
+        let origT = null;
+        for (let i = cursorWordIdx; i < words.length; i++) {
+          if (!words[i].deleted) { origT = words[i].start; break; }
+        }
+        if (origT === null) return 0;
+
+        const intervals = keptIntervals();
+        let acc = 0;
+        for (const [a, b] of intervals) {
+          if (origT <= a) return acc;           // cursor is before this interval
+          if (origT < b) return acc + (origT - a); // cursor is within this interval
+          acc += b - a;
+        }
+        return acc;
       }
 
       function updateKeptInfo() {
@@ -392,7 +442,11 @@
       // ---- Playback -----------------------------------------------------
       playBtn.addEventListener("click", () => {
         if (!sourceBuffer) return;
-        stopPlayback();
+        stopPlayback(/* keepCursor */ true);
+        startPlayback();
+      });
+
+      function startPlayback() {
         const edited = buildEditedBuffer();
         if (edited.length <= 1) {
           setStatus("Nothing left to play — every word is deleted.");
@@ -400,15 +454,18 @@
         }
         const ctx = getAudioCtx();
         if (ctx.state === "suspended") ctx.resume();
+
+        playOffset = editedOffsetForCursor();
+
         const node = ctx.createBufferSource();
         node.buffer = edited;
         node.connect(ctx.destination);
-        node.start();
+        node.start(0, playOffset);
         activeSource = node;
         stopBtn.disabled = false;
         playBtn.disabled = true;
 
-        // Map edited-timeline back to original-timeline for word highlighting.
+        // Map edited-timeline position back to original-timeline for word highlighting.
         const intervals = keptIntervals();
         const keptWords = words.filter((w) => !w.deleted);
         const startTime = ctx.currentTime;
@@ -422,7 +479,7 @@
         const totalDur = acc;
 
         const tick = () => {
-          const t = ctx.currentTime - startTime;
+          const t = playOffset + (ctx.currentTime - startTime);
           if (t >= totalDur) { stopPlayback(); return; }
           let origT = null;
           for (const [es, ee, oa] of map) {
@@ -433,7 +490,7 @@
         };
         playRaf = requestAnimationFrame(tick);
         node.onended = () => { if (activeSource === node) stopPlayback(); };
-      });
+      }
 
       function highlightAtTime(origT, keptWords) {
         clearHighlight();
@@ -458,7 +515,7 @@
 
       stopBtn.addEventListener("click", stopPlayback);
 
-      function stopPlayback() {
+      function stopPlayback(keepCursor = false) {
         if (activeSource) {
           try { activeSource.onended = null; activeSource.stop(); } catch (e) {}
           activeSource = null;
@@ -467,7 +524,29 @@
         clearHighlight();
         stopBtn.disabled = true;
         if (words.length) playBtn.disabled = false;
+        if (!keepCursor) {
+          cursorWordIdx = null;
+          applyCursorClass();
+        }
       }
+
+      // Delete/Backspace: toggle the deleted state of the cursor word.
+      document.addEventListener("keydown", (e) => {
+        const tag = document.activeElement?.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+        if (e.key !== "Delete" && e.key !== "Backspace") return;
+        if (cursorWordIdx === null) return;
+        e.preventDefault();
+        words[cursorWordIdx].deleted = !words[cursorWordIdx].deleted;
+        const span = transcriptEl.querySelector(`.word[data-index="${cursorWordIdx}"]`);
+        if (span) span.classList.toggle("deleted", words[cursorWordIdx].deleted);
+        // Advance cursor to the next word after a delete so repeated presses flow forward.
+        if (words[cursorWordIdx].deleted && cursorWordIdx < words.length - 1) {
+          cursorWordIdx++;
+          applyCursorClass();
+        }
+        updateKeptInfo();
+      });
 
       // ---- Export -------------------------------------------------------
       exportBtn.addEventListener("click", () => {
